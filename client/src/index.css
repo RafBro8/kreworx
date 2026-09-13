@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/*
+ * Kreworx has two themes, and they are not a user preference — they are a
+ * property of the surface. Dispatch, the crew app and admin are always the
+ * ops theme (dark, for people staring at it all shift). The customer portal,
+ * quotes and invoices are always the customer theme (light, for a phone in a
+ * driveway and for anything that gets printed).
+ *
+ * So the palette is scoped to [data-theme="ops"] / [data-theme="customer"] on
+ * a layout element rather than the document root, which lets one page embed
+ * the other — a preview of the customer's view inside the ops app — without
+ * the two fighting over a global class.
+ *
+ * The raw values live in the --surface-* / --ink-* custom properties below;
+ * the @theme inline block maps them onto Tailwind colour names once, so a
+ * component writes `bg-surface` and inherits whichever theme it lands in.
+ */
+
+@theme {
+  /* Bricolage Grotesque carries headlines and headline numbers — the voice.
+     Plex Sans does the reading. Plex Mono keeps times, money and ids in a
+     column that lines up. */
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing runs 4 · 8 · 12 · 16 · 24, which Tailwind's default scale already
+     lands on. The radii are ours: cards 12–16px, controls 10px, pills round. */
+  --radius-card: 14px;
+  --radius-tile: 11px;
+  --radius-control: 10px;
+}
+
+@theme inline {
+  --color-canvas: var(--surface-canvas);
+  --color-panel: var(--surface-panel);
+  --color-surface: var(--surface-card);
+  --color-raised: var(--surface-raised);
+  --color-border: var(--surface-border);
+  --color-line: var(--surface-line);
+
+  --color-ink: var(--ink-base);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-accent: var(--accent-base);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+
+  --color-done: var(--state-done);
+  --color-done-bg: var(--state-done-bg);
+  --color-done-line: var(--state-done-line);
+  --color-waiting: var(--state-waiting);
+  --color-waiting-bg: var(--state-waiting-bg);
+  --color-waiting-line: var(--state-waiting-line);
+  --color-blocked: var(--state-blocked);
+  --color-blocked-bg: var(--state-blocked-bg);
+  --color-blocked-line: var(--state-blocked-line);
+}
+
+/* ---- ops theme: dispatch, map, crew, admin ---------------------------- */
+[data-theme="ops"] {
+  color-scheme: dark;
+
+  --surface-canvas: #0c1015;
+  --surface-panel: #0e131a;
+  --surface-card: #131b23;
+  --surface-raised: #1b2530;
+  --surface-border: #212c38;
+  --surface-line: #1b2530;
+
+  --ink-base: #e9edf3;
+  --ink-muted: #9fb0c0;
+  --ink-faint: #637180;
+
+  --accent-base: #7fc8de;
+  --accent-ink: #0c1015;
+  --accent-soft: #10323c;
+  --accent-line: #2a5c6b;
+
+  --state-done: #4fb98c;
+  --state-done-bg: #10241f;
+  --state-done-line: #24493d;
+  --state-waiting: #d9a047;
+  --state-waiting-bg: #2a2115;
+  --state-waiting-line: #5c4526;
+  --state-blocked: #d4685c;
+  --state-blocked-bg: #2a1a19;
+  --state-blocked-line: #5e3330;
+}
+
+/* ---- customer theme: portal, quotes, invoices ------------------------- */
+[data-theme="customer"] {
+  color-scheme: light;
+
+  --surface-canvas: #f6f4f1;
+  --surface-panel: #ffffff;
+  --surface-card: #ffffff;
+  --surface-raised: #f6f4f1;
+  --surface-border: #e5e0d9;
+  --surface-line: #efebe4;
+
+  --ink-base: #171c22;
+  --ink-muted: #6c7580;
+  --ink-faint: #8a8478;
+
+  --accent-base: #10323c;
+  --accent-ink: #ffffff;
+  --accent-soft: #eaf3f5;
+  --accent-line: #cfe1e6;
+
+  --state-done: #1d7a58;
+  --state-done-bg: #e8f3ee;
+  --state-done-line: #cbe3d6;
+  --state-waiting: #8a6018;
+  --state-waiting-bg: #faf1df;
+  --state-waiting-line: #e5d8be;
+  --state-blocked: #a4443a;
+  --state-blocked-bg: #f9eae8;
+  --state-blocked-line: #f0c9c4;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Each layout paints its own ground; this is what sits behind them, and it
+     keeps the page from flashing white before React mounts. */
+  background-color: #0c1015;
+  color: #e9edf3;
+}
+
+[data-theme] {
+  background-color: var(--surface-canvas);
+  color: var(--ink-base);
+}
+
+/* Focus stays visible everywhere, in whichever accent is in play. */
+:focus-visible {
+  outline: 2px solid var(--accent-base, #7fc8de);
+  outline-offset: 2px;
+}

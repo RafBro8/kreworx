@@ -1,0 +1,20 @@
+# Local MongoDB for development. Published on 27030 rather than the default
+# 27017 so it cannot collide with a mongod already running on this machine or
+# with another project's container.
+services:
+  mongo:
+    image: mongo:8
+    container_name: kreworx-mongo
+    restart: unless-stopped
+    ports:
+      - "27030:27017"
+    volumes:
+      - kreworx-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kreworx-mongo-data:

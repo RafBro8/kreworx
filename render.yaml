@@ -1,0 +1,21 @@
+# Render Blueprint for the Kreworx API.
+#
+# The service runs on a paid instance rather than the free tier: a demo that
+# takes fifty seconds to wake up because the dyno was asleep is not a demo.
+services:
+  - type: web
+    name: kreworx-api
+    runtime: node
+    plan: starter
+    region: ohio
+    rootDir: server
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # set in the Render dashboard; it is a secret
+      - key: CLIENT_ORIGIN
+        sync: false # the Vercel URL, comma-separated if there is more than one

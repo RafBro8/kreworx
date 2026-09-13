@@ -1,0 +1,4 @@
+# Keep line endings consistent between Windows checkouts and Linux CI.
+* text=auto eol=lf
+*.png binary
+*.woff2 binary
