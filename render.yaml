@@ -1,12 +1,16 @@
 # Render Blueprint for the Kreworx API.
 #
-# The service runs on a paid instance rather than the free tier: a demo that
-# takes fifty seconds to wake up because the dyno was asleep is not a demo.
+# On the free plan while this is being built. Free services sleep after about
+# fifteen minutes idle and take roughly a minute to wake, which is fine when
+# the only traffic is us checking a deploy - and not fine the day a client
+# clicks the link. Switch to the starter plan in the Render dashboard before
+# sharing the URL with anyone; it is a plan change on the running service, not
+# a migration.
 services:
   - type: web
     name: kreworx-api
     runtime: node
-    plan: starter
+    plan: free
     region: ohio
     rootDir: server
     buildCommand: npm ci && npm run build

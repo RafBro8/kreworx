@@ -86,9 +86,10 @@ output directory and the SPA rewrite. Set `VITE_API_URL` to the Render URL plus
 `/api`.
 
 **API → Render.** [`render.yaml`](render.yaml) describes the service: root
-directory `server`, health check on `/api/health`, and a paid instance rather
-than the free tier — a demo that spends fifty seconds waking up is not a demo.
-`MONGODB_URI` and `CLIENT_ORIGIN` are set in the dashboard.
+directory `server`, health check on `/api/health`, and the free plan while
+this is in build — free services sleep when idle, so move to starter before
+showing the URL to anyone. `MONGODB_URI` and `CLIENT_ORIGIN` are set in the
+dashboard.
 
 **Database → MongoDB Atlas.**
 
