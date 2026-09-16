@@ -12,12 +12,16 @@ work with one tap.
 
 > **Status: in build.** Stage 1 — the foundation — is done: both deploys are
 > live, the design system is in place, and the app shell is real. The screens
-> behind it arrive stage by stage; each one says on the page what it will hold.
+> behind it arrive stage by stage; each one says on the page what it will hold,
+> so nothing on screen is pretending to be finished.
+>
+> The API runs on a free instance while this is being built, so it sleeps after
+> a quarter hour idle and the first request afterwards takes about a minute.
 
 | | |
 |---|---|
-| **Demo** | _added when the first deploy lands_ |
-| **API** | _added when the first deploy lands_ |
+| **Demo** | **https://kreworx.vercel.app** |
+| **API** | https://kreworx-api.onrender.com/api/health |
 | **Stack** | React 19 · Vite · Tailwind v4 · React Router · Express 5 · Mongoose · Socket.io · MongoDB |
 
 ## One system, two themes
