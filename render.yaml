@@ -13,7 +13,10 @@ services:
     plan: free
     region: ohio
     rootDir: server
-    buildCommand: npm ci && npm run build
+    # NODE_ENV=production makes npm skip devDependencies, and the compiler is
+    # one of those - without --include=dev the build falls through to whatever
+    # TypeScript happens to be on the build image instead of the pinned one.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
