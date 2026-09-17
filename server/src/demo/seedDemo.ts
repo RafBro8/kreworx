@@ -9,6 +9,13 @@ import { buildDemo } from "./buildDemo";
 import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
 
 /**
+ * Bump whenever the demo script changes shape (new fields, new people, new
+ * jobs). A running demo built by an older version is rebuilt on the next
+ * start rather than waiting for the date to change.
+ */
+export const DEMO_SEED_VERSION = 2;
+
+/**
  * Writes the Northline demo into the database.
  *
  * Staff and crews are updated in place, so their ids — and therefore anyone's
@@ -72,7 +79,7 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
   const highest = Math.max(...plan.jobs.map((job) => job.number));
   await Counter.updateOne({ companyId, key: "job" }, { $set: { seq: highest } }, { upsert: true });
 
-  await Company.updateOne({ _id: companyId }, { $set: { demoSeededFor: plan.today } });
+  await Company.updateOne({ _id: companyId }, { $set: { demoSeededFor: plan.today, demoSeedVersion: DEMO_SEED_VERSION } });
 
   return { companyId, today: plan.today, jobs: plan.jobs.length };
 }
@@ -81,7 +88,8 @@ let refreshing: Promise<void> | null = null;
 
 /**
  * Re-seeds when the demo was built for a different day than today in Mokena,
- * so the board always shows this week rather than the week it was deployed.
+ * or by an older version of the script, so the board always shows this week
+ * and a deploy that changes the demo shows up at once.
  * Cheap when nothing is due: one indexed lookup.
  */
 export function ensureDemoIsFresh(now: Date = new Date()): Promise<void> {
@@ -90,8 +98,9 @@ export function ensureDemoIsFresh(now: Date = new Date()): Promise<void> {
   // Concurrent callers share the one refresh in flight rather than racing it.
   refreshing ??= (async () => {
     try {
-      const company = await Company.findOne({ slug: COMPANY.slug }, { demoSeededFor: 1 }).lean();
-      if (company?.demoSeededFor === dateIn(now, COMPANY.timezone)) return;
+      const company = await Company.findOne({ slug: COMPANY.slug }, { demoSeededFor: 1, demoSeedVersion: 1 }).lean();
+      const current = company?.demoSeededFor === dateIn(now, COMPANY.timezone) && company.demoSeedVersion === DEMO_SEED_VERSION;
+      if (current) return;
       const result = await seedDemo(now);
       console.log(`Demo refreshed for ${result.today}: ${result.jobs} jobs`);
     } finally {

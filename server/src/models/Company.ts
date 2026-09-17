@@ -18,6 +18,9 @@ const companySchema = new Schema(
     // The local date the demo data was generated for, so it can be refreshed
     // when the day changes instead of going stale.
     demoSeededFor: { type: String },
+    // Which version of the demo script built the data, so a change to the
+    // script is picked up on the next deploy instead of the next day.
+    demoSeedVersion: { type: Number },
   },
   { timestamps: true },
 );
