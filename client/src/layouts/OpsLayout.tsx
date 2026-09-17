@@ -93,7 +93,9 @@ export default function OpsLayout() {
         </header>
 
         <main className="min-h-0 flex-1 overflow-auto p-6">
-          <Outlet />
+          {/* Keyed by who is signed in: switching seats while staying on the
+              same page must remount it, or it keeps the last person's data. */}
+          <Outlet key={me.user.id} />
         </main>
       </div>
     </div>

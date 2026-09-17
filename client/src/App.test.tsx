@@ -13,7 +13,11 @@ const staff: DemoAccounts["staff"] = [
   { id: "u-owner", name: "Renee Castillo", role: "owner", title: "Owner" },
   { id: "u-dispatch", name: "Dana Morales", role: "dispatcher", title: "Dispatcher" },
   { id: "u-tomas", name: "Tomas Delgado", role: "technician", title: "Lead technician" },
+  { id: "u-jalen", name: "Jalen Brooks", role: "technician", title: "Apprentice" },
 ];
+
+/** Which crew each technician rides with, as the server would resolve it. */
+const crewOf: Record<string, string> = { "u-tomas": "c-delgado", "u-jalen": "c-ramirez" };
 
 const crews: Crew[] = [
   { id: "c-ramirez", name: "Ramirez", van: "VAN 12", lead: { id: "u-luis", name: "Luis Ramirez", title: "Lead technician" }, members: [] },
@@ -107,14 +111,14 @@ function fakeApi({ signedInAs = null as string | null, apiDown = false } = {}) {
 
     if (!session) return json({ error: "Sign in to continue" }, 401);
     if (url === "/api/auth/me") return json(me());
-    if (url === "/api/crews") return json(role() === "technician" ? crews.filter((crew) => crew.id === "c-delgado") : crews);
+    if (url === "/api/crews") return json(role() === "technician" ? crews.filter((crew) => crew.id === crewOf[session!]) : crews);
     if (url.startsWith("/api/jobs/unscheduled")) {
       return role() === "technician"
         ? json({ error: "Forbidden" }, 403)
         : json([job({ number: 4477, title: "Water heater leak", status: "unscheduled", priority: "urgent", schedulingNote: "Called 8:42 AM", estimatedMinutes: 120 })]);
     }
     if (url.startsWith("/api/jobs")) {
-      return json({ date: "2026-09-16", timezone: TZ, jobs: role() === "technician" ? todaysJobs.filter((j) => j.crewId === "c-delgado") : todaysJobs });
+      return json({ date: "2026-09-16", timezone: TZ, jobs: role() === "technician" ? todaysJobs.filter((j) => j.crewId === crewOf[session!]) : todaysJobs });
     }
     if (url === "/api/owner/summary") return role() === "owner" ? json(summary) : json({ error: "Forbidden" }, 403);
     return json({ error: `Unhandled ${method} ${url}` }, 404);
@@ -232,6 +236,19 @@ describe("Kreworx", () => {
       expect(screen.queryByRole("list", { name: "Ramirez's jobs" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Unscheduled" })).toBeNull();
       expect(within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("link")).toHaveLength(1);
+    });
+
+    it("shows the new person's lane after switching between two technicians on the same page", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("fetch", fakeApi({ signedInAs: "u-tomas" }));
+      renderAt("/dispatch");
+      expect(await screen.findByRole("list", { name: "Delgado's jobs" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /Tomas Delgado/ }));
+      await user.click(await screen.findByRole("menuitemradio", { name: /Jalen Brooks/ }));
+
+      expect(await screen.findByRole("list", { name: "Ramirez's jobs" })).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Delgado's jobs" })).toBeNull();
     });
   });
 
