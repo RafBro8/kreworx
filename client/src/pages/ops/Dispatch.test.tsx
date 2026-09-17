@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +59,21 @@ function fakeServer(role: Role) {
         quote: { number: 4471, status: "sent", totalCents: 37900 },
         timeline: [{ status: "en_route", at: "2026-09-16T15:08:00Z" }],
         portalToken: role === "technician" ? null : "osei-token-000000000",
+      }),
+    ],
+    [
+      "j-4474",
+      detail({
+        id: "j-4474",
+        number: 4474,
+        title: "Thermostat swap",
+        status: "scheduled",
+        crew: { id: "c-delgado", name: "Delgado", van: "VAN 08" },
+        scheduledStart: "2026-09-16T18:00:00Z", // 1 PM in Mokena
+        scheduledEnd: "2026-09-16T19:30:00Z",
+        estimatedMinutes: 90,
+        customer: { name: "Dale Pruitt", kind: "residential", phone: "(708) 555-0114", email: null },
+        property: { street: "77 Harbor Ln", city: "New Lenox", state: "IL", zip: "60451", accessNotes: null, equipment: [] },
       }),
     ],
     [
@@ -248,6 +263,114 @@ describe("the dispatch board", () => {
     expect(within(actions).getAllByRole("button").map((button) => button.textContent)).toEqual(["Arrived"]);
     expect(within(panel).queryByRole("form")).toBeNull();
     expect(within(panel).queryByRole("link", { name: /Open what/ })).toBeNull();
+  });
+
+  describe("dragging", () => {
+    /**
+     * jsdom gives every element a zero-sized box, so the board cannot work out
+     * where a drop landed. Each lane and block is 1000px wide here, which makes
+     * the maths easy to read: half way across a 7 AM–5 PM board is noon.
+     */
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+        left: 0,
+        width: 1000,
+        top: 0,
+        height: 64,
+        right: 1000,
+        bottom: 64,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      });
+    });
+
+    /**
+     * jsdom has no DragEvent, and a plain Event drops the coordinates the board
+     * needs. A MouseEvent carrying the drag's type and a dataTransfer is what
+     * React hands to the handlers in a browser.
+     */
+    function dragEvent(type: string, clientX: number, transfer: object): MouseEvent {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
+      Object.defineProperty(event, "dataTransfer", { value: transfer });
+      return event;
+    }
+
+    function dragTo(source: HTMLElement, lane: HTMLElement, clientX: number) {
+      const transfer = { effectAllowed: "", dropEffect: "", setData: vi.fn(), getData: vi.fn() };
+      fireEvent(source, dragEvent("dragstart", 0, transfer));
+      fireEvent(lane, dragEvent("dragover", clientX, transfer));
+      fireEvent(lane, dragEvent("drop", clientX, transfer));
+    }
+
+    it("moves a job to another van and hour, saving business time for the dropped position", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+
+      const block = await screen.findByRole("button", { name: /Thermostat swap/ });
+      dragTo(block, screen.getByRole("list", { name: "Novak's jobs" }), 500);
+
+      // Half way along the board is noon in Mokena, which is 17:00 UTC in September.
+      await waitFor(() =>
+        expect(server.calls).toContainEqual({
+          method: "PATCH",
+          url: "/api/jobs/j-4474/schedule",
+          body: { crewId: "c-novak", start: "2026-09-16T17:00:00.000Z", end: "2026-09-16T18:30:00.000Z" },
+        }),
+      );
+      expect(await within(screen.getByRole("list", { name: "Novak's jobs" })).findByText("Thermostat swap")).toBeInTheDocument();
+    });
+
+    it("drags an unscheduled job out of the queue onto a van", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+
+      const queue = await screen.findByRole("region", { name: "Unscheduled" });
+      const card = await within(queue).findByRole("button", { name: /Water heater leak/ });
+      dragTo(card, screen.getByRole("list", { name: "Novak's jobs" }), 500);
+
+      await waitFor(() =>
+        expect(server.calls).toContainEqual({
+          method: "PATCH",
+          url: "/api/jobs/j-4477/schedule",
+          body: { crewId: "c-novak", start: "2026-09-16T17:00:00.000Z", end: "2026-09-16T19:00:00.000Z" },
+        }),
+      );
+      expect(await within(queue).findByText("Everything is on the board.")).toBeInTheDocument();
+    });
+
+    it("explains a clash after a drop and leaves the job where it was", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+
+      const queue = await screen.findByRole("region", { name: "Unscheduled" });
+      const card = await within(queue).findByRole("button", { name: /Water heater leak/ });
+      // 8 AM, where Novak is already busy in this fake.
+      dragTo(card, screen.getByRole("list", { name: "Novak's jobs" }), 100);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Novak already has #4469 Duct cleaning");
+      expect(await within(queue).findByRole("button", { name: /Water heater leak/ })).toBeInTheDocument();
+    });
+
+    it("will not let a job already under way be dragged", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+
+      expect(await screen.findByRole("button", { name: /No heat — priority/ })).toHaveAttribute("draggable", "false");
+      expect(screen.getByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "true");
+    });
+
+    it("gives a technician no draggable jobs at all", async () => {
+      const server = fakeServer("technician");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+
+      expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "false");
+    });
   });
 
   it("steps to the next day and back, keeping the day in the URL's query", async () => {

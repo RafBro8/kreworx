@@ -178,6 +178,7 @@ export const getJobs = (date?: string) => api<DayOfJobs>(`/jobs${date ? `?date=$
 export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
+export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
 export const getJob = (id: string) => api<JobDetail>(`/jobs/${id}`);
 export const scheduleJob = (id: string, body: { crewId: string; start: string; end: string }) =>
   api<void>(`/jobs/${id}/schedule`, { method: "PATCH", body: JSON.stringify(body) });

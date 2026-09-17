@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type DragEvent } from "react";
 import { useSearchParams } from "react-router";
 
 import { canOpen } from "../../auth/access";
 import { useMe } from "../../auth/context";
 import JobPanel from "../../components/JobPanel";
 import { Eyebrow, StatusPill } from "../../components/ui";
-import { getCrews, getJobs, getUnscheduledJobs, type Crew, type JobSummary } from "../../lib/api";
+import { getCrews, getJobs, getUnscheduledJobs, scheduleJob, type Crew, type JobSummary } from "../../lib/api";
 import {
   addDays,
   clock,
@@ -15,6 +15,7 @@ import {
   minutesOfDay,
   STATUS,
   timeRange,
+  zonedIso,
   type Tone,
 } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
@@ -22,7 +23,10 @@ import { useApi } from "../../lib/useApi";
 // The board spans 7 AM to 5 PM: the working day plus the tail of a late job.
 const BOARD_START = 7 * 60;
 const BOARD_END = 17 * 60;
-const HOURS = Array.from({ length: (BOARD_END - BOARD_START) / 60 }, (_, index) => 7 + index);
+const SPAN = BOARD_END - BOARD_START;
+const HOURS = Array.from({ length: SPAN / 60 }, (_, index) => 7 + index);
+/** Dropped jobs land on a quarter hour — finer than that is false precision. */
+const SNAP = 15;
 
 const blockTone: Record<Tone, string> = {
   done: "bg-done-bg border-done-line border-l-done",
@@ -40,10 +44,24 @@ const metaTone: Record<Tone, string> = {
   quiet: "text-ink-faint",
 };
 
+/** Work that has not started yet can be moved; anything under way cannot. */
+const MOVABLE = ["unscheduled", "scheduled", "parts_on_order"];
+
+type Drag = { jobId: string; minutes: number; grabbedAt: number };
+type DropHint = { crewId: string; start: number; minutes: number };
+
+/** Where a job would land, given the pointer and where it was picked up. */
+function dropStart(event: DragEvent<HTMLElement>, drag: Drag): number {
+  const lane = event.currentTarget.getBoundingClientRect();
+  const atPointer = BOARD_START + ((event.clientX - lane.left) / lane.width) * SPAN;
+  const start = Math.round((atPointer - drag.grabbedAt) / SNAP) * SNAP;
+  return Math.min(Math.max(start, BOARD_START), BOARD_END - drag.minutes);
+}
+
 /**
- * One day's schedule, one lane per van. Click a job to see everything about
- * it and act on it. The day lives in the URL, so a link to tomorrow's board
- * opens tomorrow's board.
+ * One day's schedule, one lane per van. Jobs can be dragged between vans and
+ * hours; the panel behind each job does the same thing with selects, which is
+ * the route for anyone not using a mouse.
  */
 export default function Dispatch() {
   const me = useMe();
@@ -51,6 +69,9 @@ export default function Dispatch() {
   const [params, setParams] = useSearchParams();
   const requestedDate = params.get("date") ?? undefined;
   const [openJob, setOpenJob] = useState<string | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [hint, setHint] = useState<DropHint | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const crews = useApi(getCrews);
   const day = useApi(() => getJobs(requestedDate), requestedDate ?? "today");
@@ -73,6 +94,32 @@ export default function Dispatch() {
   const isToday = date === today;
   const done = jobs.filter((job) => job.status === "done").length;
   const goTo = (target: string) => setParams(target === today ? {} : { date: target });
+
+  const startDrag = (job: JobSummary, grabbedAt: number) => {
+    setMoveError(null);
+    setDrag({ jobId: job.id, minutes: job.estimatedMinutes, grabbedAt });
+  };
+
+  const endDrag = () => {
+    setDrag(null);
+    setHint(null);
+  };
+
+  async function dropOnCrew(crewId: string, start: number) {
+    if (!drag) return;
+    const moving = drag;
+    endDrag();
+    try {
+      await scheduleJob(moving.jobId, {
+        crewId,
+        start: zonedIso(date, start, timezone),
+        end: zonedIso(date, start + moving.minutes, timezone),
+      });
+    } catch (failure) {
+      setMoveError(failure instanceof Error ? failure.message : "Could not move the job");
+    }
+    refresh();
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -97,6 +144,15 @@ export default function Dispatch() {
         {day.refreshing ? <span className="text-[12px] text-ink-faint">Updating…</span> : null}
       </div>
 
+      {moveError ? (
+        <div role="alert" className="flex items-start justify-between gap-4 rounded-card border border-blocked-line bg-blocked-bg px-4 py-3">
+          <span className="text-[13px] text-ink">{moveError}</span>
+          <button type="button" onClick={() => setMoveError(null)} className="shrink-0 text-[12px] text-ink-muted hover:text-ink">
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-6 xl:flex-row">
         <section aria-label="Schedule" className={`min-w-0 flex-1 overflow-x-auto transition-opacity ${day.refreshing ? "opacity-70" : ""}`}>
           <div className="min-w-[860px]">
@@ -107,7 +163,7 @@ export default function Dispatch() {
                   <span
                     key={hour}
                     className="absolute font-mono text-[11.5px] text-ink-faint"
-                    style={{ left: `${((hour * 60 - BOARD_START) / (BOARD_END - BOARD_START)) * 100}%` }}
+                    style={{ left: `${((hour * 60 - BOARD_START) / SPAN) * 100}%` }}
                   >
                     {hour === 12 ? "12 PM" : hour === 7 ? "7 AM" : hour > 12 ? hour - 12 : hour}
                   </span>
@@ -123,6 +179,13 @@ export default function Dispatch() {
                 timezone={timezone}
                 openJob={openJob}
                 onOpen={setOpenJob}
+                draggable={office}
+                drag={drag}
+                hint={hint?.crewId === crew.id ? hint : null}
+                onStartDrag={startDrag}
+                onEndDrag={endDrag}
+                onHint={setHint}
+                onDrop={dropOnCrew}
               />
             ))}
           </div>
@@ -138,7 +201,9 @@ export default function Dispatch() {
               </span>
             </div>
           </div>
-          {office ? <UnscheduledQueue queue={queue} timezone={timezone} onOpen={setOpenJob} /> : null}
+          {office ? (
+            <UnscheduledQueue queue={queue} timezone={timezone} onOpen={setOpenJob} onStartDrag={startDrag} onEndDrag={endDrag} />
+          ) : null}
         </aside>
       </div>
 
@@ -149,20 +214,35 @@ export default function Dispatch() {
   );
 }
 
-function CrewLane({
-  crew,
-  jobs,
-  timezone,
-  openJob,
-  onOpen,
-}: {
+type LaneProps = {
   crew: Crew;
   jobs: JobSummary[];
   timezone: string;
   openJob: string | null;
   onOpen: (id: string) => void;
-}) {
+  draggable: boolean;
+  drag: Drag | null;
+  hint: DropHint | null;
+  onStartDrag: (job: JobSummary, grabbedAt: number) => void;
+  onEndDrag: () => void;
+  onHint: (hint: DropHint) => void;
+  onDrop: (crewId: string, start: number) => void;
+};
+
+function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint, onStartDrag, onEndDrag, onHint, onDrop }: LaneProps) {
   const bookedMinutes = jobs.reduce((sum, job) => sum + job.estimatedMinutes, 0);
+
+  const over = (event: DragEvent<HTMLElement>) => {
+    if (!drag) return;
+    event.preventDefault();
+    onHint({ crewId: crew.id, start: dropStart(event, drag), minutes: drag.minutes });
+  };
+
+  const drop = (event: DragEvent<HTMLElement>) => {
+    if (!drag) return;
+    event.preventDefault();
+    onDrop(crew.id, dropStart(event, drag));
+  };
 
   return (
     <div className="grid h-[92px] grid-cols-[176px_1fr] items-center border-b border-line/60">
@@ -178,24 +258,81 @@ function CrewLane({
         </div>
       </div>
 
-      <ol aria-label={`${crew.name}'s jobs`} className="relative h-16">
+      <ol
+        aria-label={`${crew.name}'s jobs`}
+        onDragOver={over}
+        onDragEnter={over}
+        onDrop={drop}
+        className={`relative h-16 rounded-tile ${drag ? "outline-1 outline-offset-2 outline-dashed outline-border" : ""}`}
+      >
         {jobs.length === 0 ? (
           <li className="absolute inset-0 flex items-center justify-center rounded-tile border border-dashed border-border text-xs text-ink-faint">
             Nothing booked
           </li>
         ) : null}
         {jobs.map((job) => (
-          <JobBlock key={job.id} job={job} timezone={timezone} selected={openJob === job.id} onOpen={onOpen} />
+          <JobBlock
+            key={job.id}
+            job={job}
+            timezone={timezone}
+            selected={openJob === job.id}
+            onOpen={onOpen}
+            dragging={drag?.jobId === job.id}
+            draggable={draggable && MOVABLE.includes(job.status)}
+            onStartDrag={onStartDrag}
+            onEndDrag={onEndDrag}
+          />
         ))}
+        {hint ? <DropPreview hint={hint} /> : null}
       </ol>
     </div>
   );
 }
 
-function JobBlock({ job, timezone, selected, onOpen }: { job: JobSummary; timezone: string; selected: boolean; onOpen: (id: string) => void }) {
+function offsetOf(start: number, end: number): { left: string; width: string } {
+  return {
+    left: `calc(${((start - BOARD_START) / SPAN) * 100}% + 2px)`,
+    width: `calc(${((end - start) / SPAN) * 100}% - 4px)`,
+  };
+}
+
+function DropPreview({ hint }: { hint: DropHint }) {
+  return (
+    <li aria-hidden="true" className="pointer-events-none absolute top-0 h-16" style={offsetOf(hint.start, hint.start + hint.minutes)}>
+      <div className="flex h-full w-full items-center justify-center rounded-tile border border-dashed border-accent bg-accent-soft/40">
+        <span className="font-mono text-[10.5px] text-accent">{timeLabel(hint.start)}</span>
+      </div>
+    </li>
+  );
+}
+
+function timeLabel(minutes: number): string {
+  const hour = Math.floor(minutes / 60);
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function JobBlock({
+  job,
+  timezone,
+  selected,
+  onOpen,
+  draggable,
+  dragging,
+  onStartDrag,
+  onEndDrag,
+}: {
+  job: JobSummary;
+  timezone: string;
+  selected: boolean;
+  onOpen: (id: string) => void;
+  draggable: boolean;
+  dragging: boolean;
+  onStartDrag: (job: JobSummary, grabbedAt: number) => void;
+  onEndDrag: () => void;
+}) {
   if (!job.scheduledStart || !job.scheduledEnd) return null;
 
-  const span = BOARD_END - BOARD_START;
   const start = Math.max(minutesOfDay(job.scheduledStart, timezone), BOARD_START);
   const end = Math.min(minutesOfDay(job.scheduledEnd, timezone), BOARD_END);
   const { label, tone } = STATUS[job.status];
@@ -203,18 +340,26 @@ function JobBlock({ job, timezone, selected, onOpen }: { job: JobSummary; timezo
   const showStatus = job.status !== "scheduled";
 
   return (
-    <li
-      className="absolute top-0 h-16"
-      style={{ left: `calc(${((start - BOARD_START) / span) * 100}% + 2px)`, width: `calc(${((end - start) / span) * 100}% - 4px)` }}
-    >
+    <li className="absolute top-0 h-16" style={offsetOf(start, end)}>
       <button
         type="button"
         aria-haspopup="dialog"
+        draggable={draggable}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", job.id);
+          const block = event.currentTarget.getBoundingClientRect();
+          // Where in the block it was picked up, so the job keeps its shape
+          // under the pointer instead of jumping its start to the cursor.
+          const grabbed = block.width > 0 ? ((event.clientX - block.left) / block.width) * (end - start) : 0;
+          onStartDrag(job, grabbed);
+        }}
+        onDragEnd={onEndDrag}
         onClick={() => onOpen(job.id)}
         title={`#${job.number} ${job.title} — ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
         className={`flex h-full w-full min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-tile border border-l-[3px] px-3 text-left transition-[filter] hover:brightness-125 ${blockTone[tone]} ${
           selected ? "ring-2 ring-accent" : ""
-        }`}
+        } ${dragging ? "opacity-40" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
       >
         <span className="w-full truncate text-[13px] font-medium">
           {job.title}
@@ -236,10 +381,14 @@ function UnscheduledQueue({
   queue,
   timezone,
   onOpen,
+  onStartDrag,
+  onEndDrag,
 }: {
   queue: ReturnType<typeof useApi<JobSummary[]>>;
   timezone: string;
   onOpen: (id: string) => void;
+  onStartDrag: (job: JobSummary, grabbedAt: number) => void;
+  onEndDrag: () => void;
 }) {
   return (
     <section aria-label="Unscheduled" className="rounded-card border border-border bg-surface p-4">
@@ -258,8 +407,15 @@ function UnscheduledQueue({
               <button
                 type="button"
                 aria-haspopup="dialog"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", job.id);
+                  onStartDrag(job, 0);
+                }}
+                onDragEnd={onEndDrag}
                 onClick={() => onOpen(job.id)}
-                className="flex w-full flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5 text-left hover:border-accent-line"
+                className="flex w-full cursor-grab flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5 text-left hover:border-accent-line active:cursor-grabbing"
               >
                 <span className="flex w-full items-center justify-between gap-2">
                   <span className="truncate text-[13px] font-medium">{job.title}</span>

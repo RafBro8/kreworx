@@ -10,9 +10,10 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1–2 are done: both deploys are live, and the app
-> runs on a seeded demo business with real sign-in and roles. Screens still to
-> come say on the page what they will hold.
+> **Status: in build.** Stages 1–2 are done and stage 3 is under way: both
+> deploys are live, the app runs on a seeded demo business with real sign-in and
+> roles, and the board is working — jobs can be opened, dragged between vans and
+> moved along. Screens still to come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -69,6 +70,11 @@ the date changes in Chicago, so the board always shows this week.
   save to prove it; that is also why local Mongo runs as a one-node replica set.
 - **Status rules live on the server.** It sends each person the moves they are
   allowed, and refuses a change made from a screen that is out of date.
+- **Dragging is an enhancement, not the only way.** Jobs can be dragged between
+  vans and hours, and the panel behind every job does the same with selects -
+  which is the route on a touch screen or without a mouse.
+- **The demo can be put back.** Everyone shares one business, so the owner has a
+  reset that rebuilds today; it also rebuilds itself each morning.
 
 ## Running it locally
 
