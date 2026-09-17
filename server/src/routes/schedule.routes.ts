@@ -5,7 +5,17 @@ import { z } from "zod";
 import { dateIn, dayRange } from "../lib/dates";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireAuth, requireRole, type AuthContext } from "../middleware/auth";
-import { Company, Crew, Customer, Job, Property, User } from "../models";
+import { Company, Crew, Customer, Invoice, Job, Property, Quote, User } from "../models";
+import { JOB_STATUSES } from "../models/Job";
+import { totalCents } from "../models/lineItems";
+import {
+  allowedStatuses,
+  canReschedule,
+  changeStatus,
+  findVisibleJob,
+  scheduleJob,
+  unscheduleJob,
+} from "../services/scheduling";
 
 const router = Router();
 
@@ -125,6 +135,101 @@ router.get("/jobs/unscheduled", requireRole("owner", "dispatcher"), async (req, 
     (a, b) => urgency[a.priority] - urgency[b.priority] || a.requestedAt.getTime() - b.requestedAt.getTime(),
   );
   res.json(ordered);
+});
+
+// ---- one job ---------------------------------------------------------------------
+// Declared after /jobs/unscheduled so that path is never read as a job id.
+
+router.get("/jobs/:id", async (req, res) => {
+  const auth = authOf(req);
+  const job = await findVisibleJob(auth, req.params.id as string);
+
+  const [customer, property, crew, quote, invoice] = await Promise.all([
+    Customer.findById(job.customerId, { name: 1, kind: 1, phone: 1, email: 1 }).lean(),
+    Property.findById(job.propertyId).lean(),
+    job.crewId ? Crew.findById(job.crewId, { name: 1, van: 1 }).lean() : null,
+    Quote.findOne({ jobId: job._id }, { number: 1, status: 1, lineItems: 1 }).sort({ createdAt: -1 }).lean(),
+    Invoice.findOne({ jobId: job._id }, { number: 1, status: 1, lineItems: 1 }).sort({ issuedAt: -1 }).lean(),
+  ]);
+  const office = auth.role !== "technician";
+
+  res.json({
+    id: job._id,
+    number: job.number,
+    title: job.title,
+    description: job.description ?? null,
+    status: job.status,
+    priority: job.priority,
+    scheduledStart: job.scheduledStart,
+    scheduledEnd: job.scheduledEnd,
+    estimatedMinutes: job.estimatedMinutes,
+    schedulingNote: job.schedulingNote ?? null,
+    requestedAt: job.requestedAt,
+    crew: crew ? { id: crew._id, name: crew.name, van: crew.van } : null,
+    customer: customer
+      ? { name: customer.name, kind: customer.kind, phone: customer.phone ?? null, email: customer.email ?? null }
+      : null,
+    property: property
+      ? {
+          street: property.street,
+          city: property.city,
+          state: property.state,
+          zip: property.zip,
+          accessNotes: property.accessNotes ?? null,
+          equipment: property.equipment.map(({ kind, make, model, installedYear }) => ({ kind, make, model, installedYear })),
+        }
+      : null,
+    timeline: job.timeline.map((entry) => ({ status: entry.status, at: entry.at })),
+    quote: quote ? { number: quote.number, status: quote.status, totalCents: totalCents(quote.lineItems) } : null,
+    invoice: invoice ? { number: invoice.number, status: invoice.status, totalCents: totalCents(invoice.lineItems) } : null,
+    // The office can open exactly what the customer sees; a technician has no need to.
+    portalToken: office ? job.portalToken : null,
+    actions: {
+      statuses: allowedStatuses(auth.role, job.status),
+      reschedule: canReschedule(auth.role, job.status),
+      unschedule: office && ["scheduled", "parts_on_order"].includes(job.status),
+    },
+  });
+});
+
+const scheduleBody = z
+  .object({
+    crewId: z.string().min(1, "Choose a crew"),
+    start: z.iso.datetime({ offset: true, message: "Start must be a date and time" }),
+    end: z.iso.datetime({ offset: true, message: "End must be a date and time" }),
+  })
+  .strict();
+
+router.patch("/jobs/:id/schedule", requireRole("owner", "dispatcher"), async (req, res) => {
+  const parsed = scheduleBody.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid schedule");
+
+  await scheduleJob(authOf(req), req.params.id as string, {
+    crewId: parsed.data.crewId,
+    start: new Date(parsed.data.start),
+    end: new Date(parsed.data.end),
+  });
+  res.status(204).end();
+});
+
+router.post("/jobs/:id/unschedule", requireRole("owner", "dispatcher"), async (req, res) => {
+  await unscheduleJob(authOf(req), req.params.id as string);
+  res.status(204).end();
+});
+
+const statusBody = z
+  .object({
+    from: z.enum(JOB_STATUSES),
+    to: z.enum(JOB_STATUSES),
+  })
+  .strict();
+
+router.patch("/jobs/:id/status", async (req, res) => {
+  const parsed = statusBody.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Say which status the job is moving from and to");
+
+  await changeStatus(authOf(req), req.params.id as string, parsed.data.from, parsed.data.to);
+  res.status(204).end();
 });
 
 export default router;

@@ -1,8 +1,22 @@
+import { useCallback, useState } from "react";
+import { useSearchParams } from "react-router";
+
 import { canOpen } from "../../auth/access";
 import { useMe } from "../../auth/context";
+import JobPanel from "../../components/JobPanel";
 import { Eyebrow, StatusPill } from "../../components/ui";
 import { getCrews, getJobs, getUnscheduledJobs, type Crew, type JobSummary } from "../../lib/api";
-import { clock, initials, minutesOfDay, STATUS, timeRange, type Tone } from "../../lib/format";
+import {
+  addDays,
+  clock,
+  dateInZone,
+  initials,
+  longDate,
+  minutesOfDay,
+  STATUS,
+  timeRange,
+  type Tone,
+} from "../../lib/format";
 import { useApi } from "../../lib/useApi";
 
 // The board spans 7 AM to 5 PM: the working day plus the tail of a late job.
@@ -27,64 +41,127 @@ const metaTone: Record<Tone, string> = {
 };
 
 /**
- * Today's schedule, one lane per van. Read-only for now: blocks are where the
- * jobs are, not yet things you can drag.
+ * One day's schedule, one lane per van. Click a job to see everything about
+ * it and act on it. The day lives in the URL, so a link to tomorrow's board
+ * opens tomorrow's board.
  */
 export default function Dispatch() {
   const me = useMe();
-  const crews = useApi(getCrews);
-  const day = useApi(() => getJobs());
+  const office = canOpen(me.user.role, "map");
+  const [params, setParams] = useSearchParams();
+  const requestedDate = params.get("date") ?? undefined;
+  const [openJob, setOpenJob] = useState<string | null>(null);
 
-  if (crews.status === "loading" || day.status === "loading") return <p className="text-sm text-ink-muted">Loading today…</p>;
+  const crews = useApi(getCrews);
+  const day = useApi(() => getJobs(requestedDate), requestedDate ?? "today");
+  const queue = useApi(() => (office ? getUnscheduledJobs() : Promise.resolve([])), String(office));
+
+  const { reload: reloadDay } = day;
+  const { reload: reloadQueue } = queue;
+  const refresh = useCallback(() => {
+    reloadDay();
+    reloadQueue();
+  }, [reloadDay, reloadQueue]);
+  const closePanel = useCallback(() => setOpenJob(null), []);
+
+  if (crews.status === "loading" || day.status === "loading") return <p className="text-sm text-ink-muted">Loading the board…</p>;
   if (crews.status === "error") return <ErrorNote message={crews.message} />;
   if (day.status === "error") return <ErrorNote message={day.message} />;
 
-  const { jobs, timezone } = day.data;
+  const { jobs, timezone, date } = day.data;
+  const today = dateInZone(new Date(), timezone);
+  const isToday = date === today;
   const done = jobs.filter((job) => job.status === "done").length;
-  const showQueue = canOpen(me.user.role, "map");
+  const goTo = (target: string) => setParams(target === today ? {} : { date: target });
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row">
-      <section aria-label="Today's schedule" className="min-w-0 flex-1 overflow-x-auto">
-        <div className="min-w-[860px]">
-          <div className="grid grid-cols-[176px_1fr] border-b border-line pb-3">
-            <Eyebrow>Crew</Eyebrow>
-            <div className="relative h-4">
-              {HOURS.map((hour) => (
-                <span
-                  key={hour}
-                  className="absolute font-mono text-[11.5px] text-ink-faint"
-                  style={{ left: `${((hour * 60 - BOARD_START) / (BOARD_END - BOARD_START)) * 100}%` }}
-                >
-                  {hour === 12 ? "12 PM" : hour === 7 ? "7 AM" : hour > 12 ? hour - 12 : hour}
-                </span>
-              ))}
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-control border border-border bg-surface p-1">
+          <button type="button" aria-label="Previous day" onClick={() => goTo(addDays(date, -1))} className="rounded-[7px] px-2.5 py-1 text-[13px] text-ink-muted hover:bg-raised hover:text-ink">
+            ‹
+          </button>
+          <button type="button" aria-label="Next day" onClick={() => goTo(addDays(date, 1))} className="rounded-[7px] px-2.5 py-1 text-[13px] text-ink-muted hover:bg-raised hover:text-ink">
+            ›
+          </button>
+        </div>
+        <h2 className="font-display text-lg font-bold tracking-[-0.02em]" aria-live="polite">
+          {isToday ? "Today" : longDate(date)}
+          {isToday ? <span className="ml-2 font-sans text-[13px] font-normal text-ink-faint">{longDate(date)}</span> : null}
+        </h2>
+        {!isToday ? (
+          <button type="button" onClick={() => goTo(today)} className="rounded-control border border-border px-3 py-1.5 text-[13px] text-ink-muted hover:text-ink">
+            Back to today
+          </button>
+        ) : null}
+        {day.refreshing ? <span className="text-[12px] text-ink-faint">Updating…</span> : null}
+      </div>
+
+      <div className="flex flex-col gap-6 xl:flex-row">
+        <section aria-label="Schedule" className={`min-w-0 flex-1 overflow-x-auto transition-opacity ${day.refreshing ? "opacity-70" : ""}`}>
+          <div className="min-w-[860px]">
+            <div className="grid grid-cols-[176px_1fr] border-b border-line pb-3">
+              <Eyebrow>Crew</Eyebrow>
+              <div className="relative h-4">
+                {HOURS.map((hour) => (
+                  <span
+                    key={hour}
+                    className="absolute font-mono text-[11.5px] text-ink-faint"
+                    style={{ left: `${((hour * 60 - BOARD_START) / (BOARD_END - BOARD_START)) * 100}%` }}
+                  >
+                    {hour === 12 ? "12 PM" : hour === 7 ? "7 AM" : hour > 12 ? hour - 12 : hour}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {crews.data.map((crew) => (
+              <CrewLane
+                key={crew.id}
+                crew={crew}
+                jobs={jobs.filter((job) => job.crewId === crew.id)}
+                timezone={timezone}
+                openJob={openJob}
+                onOpen={setOpenJob}
+              />
+            ))}
+          </div>
+        </section>
+
+        <aside className="flex w-full shrink-0 flex-col gap-4 xl:w-[300px]">
+          <div className="rounded-card border border-border bg-surface p-4">
+            <Eyebrow>{isToday ? "Today" : "This day"}</Eyebrow>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-[13px] text-ink-muted">Jobs complete</span>
+              <span className="font-display text-2xl font-bold tracking-[-0.02em]">
+                {done} <span className="text-ink-faint">/ {jobs.length}</span>
+              </span>
             </div>
           </div>
+          {office ? <UnscheduledQueue queue={queue} timezone={timezone} onOpen={setOpenJob} /> : null}
+        </aside>
+      </div>
 
-          {crews.data.map((crew) => (
-            <CrewLane key={crew.id} crew={crew} jobs={jobs.filter((job) => job.crewId === crew.id)} timezone={timezone} />
-          ))}
-        </div>
-      </section>
-
-      <aside className="flex w-full shrink-0 flex-col gap-4 xl:w-[300px]">
-        <div className="rounded-card border border-border bg-surface p-4">
-          <Eyebrow>Today</Eyebrow>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-[13px] text-ink-muted">Jobs complete</span>
-            <span className="font-display text-2xl font-bold tracking-[-0.02em]">
-              {done} <span className="text-ink-faint">/ {jobs.length}</span>
-            </span>
-          </div>
-        </div>
-        {showQueue ? <UnscheduledQueue timezone={timezone} /> : null}
-      </aside>
+      {openJob ? (
+        <JobPanel jobId={openJob} crews={crews.data} timezone={timezone} boardDate={date} onClose={closePanel} onChanged={refresh} />
+      ) : null}
     </div>
   );
 }
 
-function CrewLane({ crew, jobs, timezone }: { crew: Crew; jobs: JobSummary[]; timezone: string }) {
+function CrewLane({
+  crew,
+  jobs,
+  timezone,
+  openJob,
+  onOpen,
+}: {
+  crew: Crew;
+  jobs: JobSummary[];
+  timezone: string;
+  openJob: string | null;
+  onOpen: (id: string) => void;
+}) {
   const bookedMinutes = jobs.reduce((sum, job) => sum + job.estimatedMinutes, 0);
 
   return (
@@ -108,14 +185,14 @@ function CrewLane({ crew, jobs, timezone }: { crew: Crew; jobs: JobSummary[]; ti
           </li>
         ) : null}
         {jobs.map((job) => (
-          <JobBlock key={job.id} job={job} timezone={timezone} />
+          <JobBlock key={job.id} job={job} timezone={timezone} selected={openJob === job.id} onOpen={onOpen} />
         ))}
       </ol>
     </div>
   );
 }
 
-function JobBlock({ job, timezone }: { job: JobSummary; timezone: string }) {
+function JobBlock({ job, timezone, selected, onOpen }: { job: JobSummary; timezone: string; selected: boolean; onOpen: (id: string) => void }) {
   if (!job.scheduledStart || !job.scheduledEnd) return null;
 
   const span = BOARD_END - BOARD_START;
@@ -127,28 +204,43 @@ function JobBlock({ job, timezone }: { job: JobSummary; timezone: string }) {
 
   return (
     <li
-      className={`absolute top-0 flex h-16 min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-tile border border-l-[3px] px-3 ${blockTone[tone]}`}
+      className="absolute top-0 h-16"
       style={{ left: `calc(${((start - BOARD_START) / span) * 100}% + 2px)`, width: `calc(${((end - start) / span) * 100}% - 4px)` }}
-      title={`#${job.number} ${job.title} — ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
     >
-      <span className="truncate text-[13px] font-medium">
-        {job.title}
-        {job.priority !== "normal" ? <span className="sr-only"> ({job.priority} priority)</span> : null}
-      </span>
-      <span className="truncate text-xs text-ink-muted">
-        {surnameOrBusiness(job)} · {job.address?.street}
-      </span>
-      <span className={`truncate font-mono text-[10.5px] uppercase ${metaTone[tone]}`}>
-        {timeRange(job.scheduledStart, job.scheduledEnd, timezone)}
-        {showStatus ? ` · ${label}` : ""}
-      </span>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => onOpen(job.id)}
+        title={`#${job.number} ${job.title} — ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
+        className={`flex h-full w-full min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-tile border border-l-[3px] px-3 text-left transition-[filter] hover:brightness-125 ${blockTone[tone]} ${
+          selected ? "ring-2 ring-accent" : ""
+        }`}
+      >
+        <span className="w-full truncate text-[13px] font-medium">
+          {job.title}
+          {job.priority !== "normal" ? <span className="sr-only"> ({job.priority} priority)</span> : null}
+        </span>
+        <span className="w-full truncate text-xs text-ink-muted">
+          {surnameOrBusiness(job)} · {job.address?.street}
+        </span>
+        <span className={`w-full truncate font-mono text-[10.5px] uppercase ${metaTone[tone]}`}>
+          {timeRange(job.scheduledStart, job.scheduledEnd, timezone)}
+          {showStatus ? ` · ${label}` : ""}
+        </span>
+      </button>
     </li>
   );
 }
 
-function UnscheduledQueue({ timezone }: { timezone: string }) {
-  const queue = useApi(getUnscheduledJobs);
-
+function UnscheduledQueue({
+  queue,
+  timezone,
+  onOpen,
+}: {
+  queue: ReturnType<typeof useApi<JobSummary[]>>;
+  timezone: string;
+  onOpen: (id: string) => void;
+}) {
   return (
     <section aria-label="Unscheduled" className="rounded-card border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between">
@@ -158,20 +250,28 @@ function UnscheduledQueue({ timezone }: { timezone: string }) {
 
       {queue.status === "loading" ? <p className="mt-3 text-[13px] text-ink-muted">Loading…</p> : null}
       {queue.status === "error" ? <p className="mt-3 text-[13px] text-blocked">{queue.message}</p> : null}
-      {queue.status === "ready" ? (
+      {queue.status === "ready" && queue.data.length === 0 ? <p className="mt-3 text-[13px] text-ink-muted">Everything is on the board.</p> : null}
+      {queue.status === "ready" && queue.data.length > 0 ? (
         <ul className="mt-3 flex flex-col gap-2.5">
           {queue.data.map((job) => (
-            <li key={job.id} className="flex flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[13px] font-medium">{job.title}</span>
-                {job.priority === "urgent" ? <StatusPill tone="blocked">Urgent</StatusPill> : null}
-              </div>
-              <span className="truncate text-xs text-ink-muted">
-                {surnameOrBusiness(job)} · {job.address?.street}
-              </span>
-              <span className="font-mono text-[10.5px] text-ink-faint">
-                {job.schedulingNote ?? `Requested ${clock(job.requestedAt, timezone)}`} · {formatEstimate(job.estimatedMinutes)}
-              </span>
+            <li key={job.id}>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => onOpen(job.id)}
+                className="flex w-full flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5 text-left hover:border-accent-line"
+              >
+                <span className="flex w-full items-center justify-between gap-2">
+                  <span className="truncate text-[13px] font-medium">{job.title}</span>
+                  {job.priority === "urgent" ? <StatusPill tone="blocked">Urgent</StatusPill> : null}
+                </span>
+                <span className="w-full truncate text-xs text-ink-muted">
+                  {surnameOrBusiness(job)} · {job.address?.street}
+                </span>
+                <span className="font-mono text-[10.5px] text-ink-faint">
+                  {job.schedulingNote ?? `Requested ${clock(job.requestedAt, timezone)}`} · {formatEstimate(job.estimatedMinutes)}
+                </span>
+              </button>
             </li>
           ))}
         </ul>

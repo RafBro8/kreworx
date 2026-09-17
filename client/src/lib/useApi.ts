@@ -4,18 +4,19 @@ import { ApiRequestError } from "./api";
 
 export type ApiState<T> =
   | { status: "loading" }
-  | { status: "ready"; data: T }
+  | { status: "ready"; data: T; refreshing: boolean }
   | { status: "error"; message: string; httpStatus: number | null };
 
-type Settled<T> = Exclude<ApiState<T>, { status: "loading" }>;
+type Settled<T> = { status: "ready"; data: T } | { status: "error"; message: string; httpStatus: number | null };
 
 /**
  * Loads something from the API when a component mounts, and again whenever
  * `key` changes or `reload` is called.
  *
- * Each result is stamped with the request that produced it, and anything
- * stamped for an older request reads as still loading. That drops late
- * responses without resetting state inside the effect.
+ * Each result is stamped with the request that produced it, and a result
+ * stamped for an older request never overwrites a newer one. While a new
+ * request is in flight the last good data stays on screen, marked
+ * `refreshing`, so a board does not blank out every time a job moves.
  */
 export function useApi<T>(load: () => Promise<T>, key: string = ""): ApiState<T> & { reload: () => void } {
   const [attempt, setAttempt] = useState(0);
@@ -52,6 +53,12 @@ export function useApi<T>(load: () => Promise<T>, key: string = ""): ApiState<T>
   }, [request]);
 
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
-  const state: ApiState<T> = result && result.request === request ? result.state : { status: "loading" };
+
+  let state: ApiState<T>;
+  if (!result) state = { status: "loading" };
+  else if (result.request === request) state = result.state.status === "ready" ? { ...result.state, refreshing: false } : result.state;
+  else if (result.state.status === "ready") state = { ...result.state, refreshing: true };
+  else state = { status: "loading" };
+
   return { ...state, reload };
 }

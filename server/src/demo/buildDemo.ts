@@ -83,7 +83,7 @@ export type PlannedInvoice = {
 
 export type DemoPlan = {
   today: string;
-  customers: { _id: Types.ObjectId; key: string; name: string; kind: "residential" | "commercial" }[];
+  customers: { _id: Types.ObjectId; key: string; name: string; kind: "residential" | "commercial"; phone: string }[];
   properties: {
     _id: Types.ObjectId;
     customerId: Types.ObjectId;
@@ -142,14 +142,16 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   const customers: DemoPlan["customers"] = [];
   const properties: DemoPlan["properties"] = [];
 
-  for (const customer of CUSTOMERS) {
+  for (const [index, customer] of CUSTOMERS.entries()) {
     const customerId = new Types.ObjectId();
     const propertyId = new Types.ObjectId();
     customerIds.set(customer.key, customerId);
     propertyIds.set(customer.key, propertyId);
 
     const centre = town(customer.town);
-    customers.push({ _id: customerId, key: customer.key, name: customer.name, kind: customer.kind });
+    // 555-0100 to 555-0199 is set aside for fiction, so these numbers ring nobody.
+    const phone = `(708) 555-01${String(10 + index).padStart(2, "0")}`;
+    customers.push({ _id: customerId, key: customer.key, name: customer.name, kind: customer.kind, phone });
     properties.push({
       _id: propertyId,
       customerId,

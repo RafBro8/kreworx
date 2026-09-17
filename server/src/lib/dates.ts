@@ -112,3 +112,11 @@ export function dayRange(date: string, timeZone: string): { start: Date; end: Da
 export function startOfWeek(date: string): string {
   return addDays(date, -((weekday(date) + 6) % 7));
 }
+
+/** "10:30 AM" in a zone, for messages a person reads. */
+export function clockLabel(instant: Date, timeZone: string): string {
+  const minutes = minutesIn(instant, timeZone);
+  const hour = Math.floor(minutes / 60);
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}:${pad(minutes % 60)} ${hour < 12 ? "AM" : "PM"}`;
+}

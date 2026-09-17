@@ -63,6 +63,12 @@ the date changes in Chicago, so the board always shows this week.
 - **Customers have no accounts.** Each job has a long random link, and the portal
   response is built from an allow-list so nothing internal can leak through it.
 - **Money** is whole cents, totalled by one function everywhere it is summed.
+- **No double-booking.** Moving a job checks the van's day and saves inside one
+  transaction that also writes to the van, so two dispatchers grabbing the same
+  slot at once cannot both win. A test holds two bookings between check and
+  save to prove it; that is also why local Mongo runs as a one-node replica set.
+- **Status rules live on the server.** It sends each person the moves they are
+  allowed, and refuses a change made from a screen that is out of date.
 
 ## Running it locally
 

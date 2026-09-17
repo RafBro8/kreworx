@@ -136,6 +136,35 @@ export type PortalView = {
   } | null;
 };
 
+export type JobDetail = {
+  id: string;
+  number: number;
+  title: string;
+  description: string | null;
+  status: JobStatus;
+  priority: "normal" | "high" | "urgent";
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+  estimatedMinutes: number;
+  schedulingNote: string | null;
+  requestedAt: string;
+  crew: { id: string; name: string; van: string } | null;
+  customer: { name: string; kind: "residential" | "commercial"; phone: string | null; email: string | null } | null;
+  property: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    accessNotes: string | null;
+    equipment: { kind: string; make: string; model: string; installedYear: number }[];
+  } | null;
+  timeline: { status: JobStatus; at: string }[];
+  quote: { number: number; status: string; totalCents: number } | null;
+  invoice: { number: number; status: string; totalCents: number } | null;
+  portalToken: string | null;
+  actions: { statuses: JobStatus[]; reschedule: boolean; unschedule: boolean };
+};
+
 // ---- calls -------------------------------------------------------------------
 
 export const getHealth = () => api<Health>("/health");
@@ -149,3 +178,9 @@ export const getJobs = (date?: string) => api<DayOfJobs>(`/jobs${date ? `?date=$
 export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
+export const getJob = (id: string) => api<JobDetail>(`/jobs/${id}`);
+export const scheduleJob = (id: string, body: { crewId: string; start: string; end: string }) =>
+  api<void>(`/jobs/${id}/schedule`, { method: "PATCH", body: JSON.stringify(body) });
+export const unscheduleJob = (id: string) => api<void>(`/jobs/${id}/unschedule`, { method: "POST" });
+export const changeJobStatus = (id: string, from: JobStatus, to: JobStatus) =>
+  api<void>(`/jobs/${id}/status`, { method: "PATCH", body: JSON.stringify({ from, to }) });

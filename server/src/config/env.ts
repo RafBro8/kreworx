@@ -27,7 +27,7 @@ export const env = {
   // clone runs against the docker-compose Mongo with no setup.
   mongodbUri: isProduction
     ? required("MONGODB_URI")
-    : required("MONGODB_URI", "mongodb://127.0.0.1:27030/kreworx"),
+    : required("MONGODB_URI", "mongodb://127.0.0.1:27030/kreworx?directConnection=true"),
   jwtSecret: isProduction
     ? required("JWT_SECRET")
     : required("JWT_SECRET", "local-development-secret-not-for-production"),

@@ -85,3 +85,63 @@ export const STATUS: Record<JobStatus, { label: string; tone: Tone }> = {
   done: { label: "Done", tone: "done" },
   cancelled: { label: "Cancelled", tone: "quiet" },
 };
+
+/** The local calendar date ("YYYY-MM-DD") of an instant in a zone. */
+export function dateInZone(when: Date | string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(when));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * The UTC instant for a wall-clock time on a date in the business's zone —
+ * the inverse of `minutesOfDay`. Mirrors the server's conversion, so a job the
+ * dispatcher puts at 1:30 PM is saved at 1:30 PM in Mokena even when the
+ * dispatcher's laptop is set to another timezone.
+ */
+export function zonedIso(date: string, minutesOfDayValue: number, timeZone: string): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  const wallAsUtc = Date.UTC(year, month - 1, day, 0, minutesOfDayValue);
+  const offsetAt = (instant: number) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(instant);
+    const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+    return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute")) - Math.floor(instant / 60_000) * 60_000;
+  };
+  // Sample the offset on both sides of the date so a DST change that day resolves correctly.
+  const candidates = [86_400_000, -86_400_000]
+    .map((shift) => wallAsUtc - offsetAt(wallAsUtc - shift))
+    .filter((instant) => dateInZone(new Date(instant), timeZone) === date && minutesOfDay(new Date(instant).toISOString(), timeZone) === minutesOfDayValue)
+    .sort((a, b) => a - b);
+  return new Date(candidates[0] ?? wallAsUtc - offsetAt(wallAsUtc)).toISOString();
+}
+
+/** "Wednesday 16 September" — for a date heading. */
+export function longDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number) as [number, number, number];
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+/** What a button says when it moves a job to this status. */
+export const STATUS_ACTION: Record<JobStatus, string> = {
+  unscheduled: "Back to the queue",
+  scheduled: "Back to scheduled",
+  en_route: "On the way",
+  on_site: "Arrived",
+  awaiting_approval: "Waiting on approval",
+  parts_on_order: "Parts on order",
+  done: "Mark done",
+  cancelled: "Cancel job",
+};

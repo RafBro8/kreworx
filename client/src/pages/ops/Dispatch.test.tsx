@@ -1,0 +1,268 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import App from "../../App";
+import AuthProvider from "../../auth/AuthProvider";
+import type { Crew, JobDetail, JobStatus, JobSummary, Role } from "../../lib/api";
+
+const TZ = "America/Chicago";
+// Pin "today" so the board, the date heading and the schedule form agree.
+const NOW = new Date("2026-09-16T15:20:00Z"); // 10:20 AM in Mokena
+
+const crews: Crew[] = [
+  { id: "c-novak", name: "Novak", van: "VAN 03", lead: { id: "u-petra", name: "Petra Novak", title: "Lead technician" }, members: [] },
+  { id: "c-delgado", name: "Delgado", van: "VAN 08", lead: { id: "u-tomas", name: "Tomas Delgado", title: "Lead technician" }, members: [] },
+];
+
+function detail(overrides: Partial<JobDetail>): JobDetail {
+  return {
+    id: "",
+    number: 0,
+    title: "",
+    description: null,
+    status: "scheduled",
+    priority: "normal",
+    scheduledStart: null,
+    scheduledEnd: null,
+    estimatedMinutes: 60,
+    schedulingNote: null,
+    requestedAt: "2026-09-16T13:42:00Z",
+    crew: null,
+    customer: { name: "Someone Else", kind: "residential", phone: "(708) 555-0110", email: null },
+    property: { street: "1 Street", city: "Mokena", state: "IL", zip: "60448", accessNotes: null, equipment: [] },
+    timeline: [],
+    quote: null,
+    invoice: null,
+    portalToken: "token-123456789012",
+    actions: { statuses: [], reschedule: false, unschedule: false },
+    ...overrides,
+  };
+}
+
+function fakeServer(role: Role) {
+  const jobs = new Map<string, JobDetail>([
+    [
+      "j-4471",
+      detail({
+        id: "j-4471",
+        number: 4471,
+        title: "No heat — priority",
+        status: "en_route",
+        priority: "high",
+        crew: { id: "c-delgado", name: "Delgado", van: "VAN 08" },
+        scheduledStart: "2026-09-16T15:30:00Z",
+        scheduledEnd: "2026-09-16T17:30:00Z",
+        customer: { name: "Amara Osei", kind: "residential", phone: "(708) 555-0113", email: null },
+        property: { street: "45 Linden Ave", city: "Mokena", state: "IL", zip: "60448", accessNotes: "Side gate code 4471. Dog is friendly.", equipment: [{ kind: "Gas furnace", make: "Goodman", model: "GMVC96", installedYear: 2013 }] },
+        quote: { number: 4471, status: "sent", totalCents: 37900 },
+        timeline: [{ status: "en_route", at: "2026-09-16T15:08:00Z" }],
+        portalToken: role === "technician" ? null : "osei-token-000000000",
+      }),
+    ],
+    [
+      "j-4477",
+      detail({
+        id: "j-4477",
+        number: 4477,
+        title: "Water heater leak",
+        status: "unscheduled",
+        priority: "urgent",
+        estimatedMinutes: 120,
+        schedulingNote: "Called 8:42 AM",
+        customer: { name: "Vince Marchetti", kind: "residential", phone: "(708) 555-0118", email: null },
+      }),
+    ],
+  ]);
+
+  const actionsFor = (job: JobDetail): JobDetail["actions"] => {
+    const next: Partial<Record<JobStatus, JobStatus[]>> = { en_route: ["on_site", "scheduled"], on_site: ["awaiting_approval", "parts_on_order", "done"], unscheduled: ["cancelled"], scheduled: ["en_route", "cancelled"] };
+    const statuses = (next[job.status] ?? []).filter((status) => role !== "technician" || !["scheduled", "cancelled"].includes(status));
+    const office = role !== "technician";
+    return { statuses, reschedule: office && ["unscheduled", "scheduled"].includes(job.status), unschedule: office && job.status === "scheduled" };
+  };
+
+  const calls: { method: string; url: string; body?: unknown }[] = [];
+
+  const json = (body: unknown, status = 200) =>
+    Promise.resolve(new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+
+  const summary = (job: JobDetail): JobSummary => ({
+    id: job.id,
+    number: job.number,
+    title: job.title,
+    status: job.status,
+    priority: job.priority,
+    crewId: job.crew?.id ?? null,
+    scheduledStart: job.scheduledStart,
+    scheduledEnd: job.scheduledEnd,
+    estimatedMinutes: job.estimatedMinutes,
+    schedulingNote: job.schedulingNote,
+    requestedAt: job.requestedAt,
+    customer: job.customer ? { name: job.customer.name, kind: job.customer.kind } : null,
+    address: job.property ? { street: job.property.street, city: job.property.city } : null,
+  });
+
+  const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    calls.push({ method, url, body });
+
+    if (url === "/api/health") return json({ status: "ok", uptimeSeconds: 1, commit: null, demoMode: true, database: { connected: true } });
+    if (url === "/api/auth/me") {
+      const user = role === "technician" ? { id: "u-tomas", name: "Tomas Delgado", role, title: "Lead technician" } : { id: "u-dana", name: "Dana Morales", role, title: "Dispatcher" };
+      return json({ user, company: { id: "co", name: "Northline Mechanical", timezone: TZ, isDemo: false } });
+    }
+    if (url === "/api/crews") return json(role === "technician" ? crews.filter((crew) => crew.id === "c-delgado") : crews);
+    if (url === "/api/jobs/unscheduled") return json([...jobs.values()].filter((job) => job.status === "unscheduled").map(summary));
+    if (url.startsWith("/api/jobs?") || url === "/api/jobs") {
+      const date = new URL(url, "http://x").searchParams.get("date") ?? "2026-09-16";
+      const onDay = [...jobs.values()].filter((job) => job.scheduledStart?.startsWith(date) && (role !== "technician" || job.crew?.id === "c-delgado"));
+      return json({ date, timezone: TZ, jobs: onDay.map(summary) });
+    }
+
+    const match = url.match(/^\/api\/jobs\/([^/]+)(?:\/(schedule|status|unschedule))?$/);
+    const job = match ? jobs.get(match[1]!) : undefined;
+    if (!job) return json({ error: "Job not found" }, 404);
+
+    if (!match![2]) return json({ ...job, actions: actionsFor(job) });
+
+    if (match![2] === "schedule") {
+      // Novak is busy until 10 AM; anything starting before then clashes.
+      if (body.crewId === "c-novak" && body.start < "2026-09-16T15:00:00.000Z") {
+        return json({ error: "Novak already has #4469 Duct cleaning for Marisol Arenas from 8:00 AM to 10:00 AM" }, 409);
+      }
+      const crew = crews.find((candidate) => candidate.id === body.crewId)!;
+      jobs.set(job.id, { ...job, status: "scheduled", schedulingNote: null, crew: { id: crew.id, name: crew.name, van: crew.van }, scheduledStart: body.start, scheduledEnd: body.end });
+      return json(null, 204);
+    }
+    if (match![2] === "status") {
+      if (body.from !== job.status) return json({ error: "This job was changed while you were looking at it" }, 409);
+      jobs.set(job.id, { ...job, status: body.to, timeline: [...job.timeline, { status: body.to, at: NOW.toISOString() }] });
+      return json(null, 204);
+    }
+    return json(null, 204);
+  });
+
+  return { fetch, calls, jobs };
+}
+
+function renderBoard(path = "/dispatch") {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+}
+
+describe("the dispatch board", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("opens a job to show the access notes, equipment and quote, and closes on Escape", async () => {
+    const server = fakeServer("dispatcher");
+    vi.stubGlobal("fetch", server.fetch);
+    const user = userEvent.setup();
+    renderBoard();
+
+    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
+
+    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+    expect(await within(panel).findByText("Side gate code 4471. Dog is friendly.")).toBeInTheDocument();
+    expect(within(panel).getByText("Goodman GMVC96 · 2013")).toBeInTheDocument();
+    expect(within(panel).getByText("$379.00")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: /\(708\) 555-0113/ })).toHaveAttribute("href", "tel:7085550113");
+    expect(within(panel).getByRole("link", { name: "Open what Amara sees →" })).toHaveAttribute("href", "/portal/osei-token-000000000");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("shows the server's reason when a booking clashes, then books a free slot and clears the queue", async () => {
+    const server = fakeServer("dispatcher");
+    vi.stubGlobal("fetch", server.fetch);
+    const user = userEvent.setup();
+    renderBoard();
+
+    const queue = await screen.findByRole("region", { name: "Unscheduled" });
+    await user.click(await within(queue).findByRole("button", { name: /Water heater leak/ }));
+    const panel = await screen.findByRole("dialog", { name: "Water heater leak" });
+    const form = await within(panel).findByRole("form", { name: "Schedule" });
+
+    await user.selectOptions(within(form).getByLabelText("Crew"), "c-novak");
+    await user.selectOptions(within(form).getByLabelText("Start"), String(9 * 60));
+    await user.click(within(form).getByRole("button", { name: "Schedule job" }));
+
+    expect(await within(form).findByRole("alert")).toHaveTextContent("Novak already has #4469 Duct cleaning");
+
+    await user.selectOptions(within(form).getByLabelText("Start"), String(12 * 60 + 30));
+    await user.click(within(form).getByRole("button", { name: "Schedule job" }));
+
+    // 12:30 PM in Mokena is 17:30 UTC in September; the board saves business time, not laptop time.
+    await waitFor(() =>
+      expect(server.calls).toContainEqual({
+        method: "PATCH",
+        url: "/api/jobs/j-4477/schedule",
+        body: { crewId: "c-novak", start: "2026-09-16T17:30:00.000Z", end: "2026-09-16T19:30:00.000Z" },
+      }),
+    );
+    expect(await within(queue).findByText("Everything is on the board.")).toBeInTheDocument();
+    expect(await within(screen.getByRole("list", { name: "Novak's jobs" })).findByText("Water heater leak")).toBeInTheDocument();
+  });
+
+  it("moves a job along from the panel and records it in the history", async () => {
+    const server = fakeServer("dispatcher");
+    vi.stubGlobal("fetch", server.fetch);
+    const user = userEvent.setup();
+    renderBoard();
+
+    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
+    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+    await user.click(await within(panel).findByRole("button", { name: "Arrived" }));
+
+    await waitFor(() => expect(server.calls).toContainEqual({ method: "PATCH", url: "/api/jobs/j-4471/status", body: { from: "en_route", to: "on_site" } }));
+    expect(await within(panel).findByRole("button", { name: "Mark done" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Delgado's jobs" })).getByText(/On site/i)).toBeInTheDocument();
+  });
+
+  it("gives a technician field actions only: no scheduling, no cancel, no customer link", async () => {
+    const server = fakeServer("technician");
+    vi.stubGlobal("fetch", server.fetch);
+    const user = userEvent.setup();
+    renderBoard();
+
+    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
+    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+
+    const actions = await within(panel).findByRole("group", { name: "Update status" });
+    expect(within(actions).getAllByRole("button").map((button) => button.textContent)).toEqual(["Arrived"]);
+    expect(within(panel).queryByRole("form")).toBeNull();
+    expect(within(panel).queryByRole("link", { name: /Open what/ })).toBeNull();
+  });
+
+  it("steps to the next day and back, keeping the day in the URL's query", async () => {
+    const server = fakeServer("dispatcher");
+    vi.stubGlobal("fetch", server.fetch);
+    const user = userEvent.setup();
+    renderBoard();
+
+    expect(await screen.findByRole("heading", { name: /^Today/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next day" }));
+
+    expect(await screen.findByRole("heading", { name: "Thursday, September 17" })).toBeInTheDocument();
+    expect(server.calls.some((call) => call.url === "/api/jobs?date=2026-09-17")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Back to today" }));
+    expect(await screen.findByRole("heading", { name: /^Today/ })).toBeInTheDocument();
+  });
+});

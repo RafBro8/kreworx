@@ -9,6 +9,9 @@ const crewSchema = new Schema(
     leadId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     memberIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     sortOrder: { type: Number, default: 0 },
+    // Bumped inside every booking transaction for this crew. Nothing reads it;
+    // writing it is what makes two simultaneous bookings for one van conflict.
+    scheduleRevision: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
