@@ -18,6 +18,7 @@ router.get("/health", (_req, res) => {
     status: database.ready ? "ok" : "degraded",
     uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
     commit: env.commit?.slice(0, 7) ?? null,
+    demoMode: env.demoMode,
     database: {
       connected: database.ready,
       // The database name is a useful check when several environments share a

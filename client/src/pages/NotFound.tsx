@@ -11,10 +11,10 @@ export default function NotFound() {
         The page you were looking for has either moved or never existed.
       </p>
       <Link
-        to="/dispatch"
+        to="/"
         className="rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink"
       >
-        Back to dispatch
+        Back to Kreworx
       </Link>
     </div>
   );

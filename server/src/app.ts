@@ -1,11 +1,17 @@
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 
 import { env } from "./config/env";
+import { loadSession } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import authRoutes from "./routes/auth.routes";
 import healthRoutes from "./routes/health.routes";
+import ownerRoutes from "./routes/owner.routes";
+import portalRoutes from "./routes/portal.routes";
+import scheduleRoutes from "./routes/schedule.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -21,6 +27,7 @@ export function createApp(): Express {
     }),
   );
   app.use(express.json({ limit: "1mb" }));
+  app.use(cookieParser());
 
   if (!env.isTest) {
     app.use(morgan(env.isProduction ? "combined" : "dev"));
@@ -29,6 +36,7 @@ export function createApp(): Express {
   // The API lives under /api so the same host could serve the built client
   // later without the two fighting over paths.
   app.use("/api", healthRoutes);
+  app.use("/api", loadSession, authRoutes, portalRoutes, scheduleRoutes, ownerRoutes);
 
   // Render's URL is a demo link people will paste into a browser; give them
   // something other than a 404 when they do.

@@ -1,5 +1,8 @@
 import { Navigate, Route, Routes } from "react-router";
 
+import { homeFor } from "./auth/access";
+import { useAuth } from "./auth/context";
+import { FullPageNote, RequireAuth, RequireSection } from "./auth/guards";
 import OpsLayout from "./layouts/OpsLayout";
 import PortalLayout from "./layouts/PortalLayout";
 import NotFound from "./pages/NotFound";
@@ -9,24 +12,39 @@ import MapView from "./pages/ops/MapView";
 import Money from "./pages/ops/Money";
 import Owner from "./pages/ops/Owner";
 import PortalHome from "./pages/portal/PortalHome";
+import PortalJob from "./pages/portal/PortalJob";
+import Welcome from "./pages/Welcome";
+
+function Home() {
+  const auth = useAuth();
+  if (auth.status === "loading") return <FullPageNote>Loading…</FullPageNote>;
+  return <Navigate to={auth.status === "signedIn" ? homeFor(auth.me.user.role) : "/welcome"} replace />;
+}
 
 export default function App() {
   return (
     <Routes>
-      {/* Dispatch is the front door: it is what the business opens in the
-          morning and what a demo should land on. */}
-      <Route index element={<Navigate to="/dispatch" replace />} />
+      <Route index element={<Home />} />
+      <Route path="welcome" element={<Welcome />} />
 
-      <Route element={<OpsLayout />}>
-        <Route path="dispatch" element={<Dispatch />} />
-        <Route path="map" element={<MapView />} />
-        <Route path="customers" element={<Customers />} />
-        <Route path="money" element={<Money />} />
-        <Route path="owner" element={<Owner />} />
+      <Route
+        element={
+          <RequireAuth>
+            <OpsLayout />
+          </RequireAuth>
+        }
+      >
+        <Route path="dispatch" element={<RequireSection section="dispatch"><Dispatch /></RequireSection>} />
+        <Route path="map" element={<RequireSection section="map"><MapView /></RequireSection>} />
+        <Route path="customers" element={<RequireSection section="customers"><Customers /></RequireSection>} />
+        <Route path="money" element={<RequireSection section="money"><Money /></RequireSection>} />
+        <Route path="owner" element={<RequireSection section="owner"><Owner /></RequireSection>} />
       </Route>
 
+      {/* The portal needs no session: the link is the credential. */}
       <Route path="portal" element={<PortalLayout />}>
         <Route index element={<PortalHome />} />
+        <Route path=":token" element={<PortalJob />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

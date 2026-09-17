@@ -27,5 +27,11 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false # set in the Render dashboard; it is a secret
+      # Signs session cookies. Render generates a long random value once.
+      - key: JWT_SECRET
+        generateValue: true
+      # One-click sign-in as the Northline staff, and a daily demo refresh.
+      - key: DEMO_MODE
+        value: "true"
       - key: CLIENT_ORIGIN
         sync: false # the Vercel URL, comma-separated if there is more than one

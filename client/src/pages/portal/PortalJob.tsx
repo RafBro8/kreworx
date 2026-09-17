@@ -1,0 +1,205 @@
+import { useParams } from "react-router";
+
+import { Card, Display } from "../../components/ui";
+import { PhoneIcon } from "../../components/icons";
+import { getPortal, type JobStatus, type PortalView } from "../../lib/api";
+import { clockWithPeriod, initials, money, shortDate } from "../../lib/format";
+import { useApi } from "../../lib/useApi";
+
+const STEPS = ["Booked", "En route", "On site", "Done"] as const;
+
+/** Where on the four-step track each status sits. */
+const STEP_OF: Record<JobStatus, number> = {
+  unscheduled: 0,
+  scheduled: 0,
+  en_route: 1,
+  on_site: 2,
+  awaiting_approval: 2,
+  parts_on_order: 2,
+  done: 3,
+  cancelled: 0,
+};
+
+/**
+ * What the customer opens from a text message. No login and nothing to
+ * install: the link is the whole experience.
+ */
+export default function PortalJob() {
+  const { token = "" } = useParams();
+  const portal = useApi(() => getPortal(token), token);
+
+  if (portal.status === "loading") {
+    return <p className="py-10 text-center text-sm text-ink-muted">Loading your visit…</p>;
+  }
+
+  if (portal.status === "error") {
+    return (
+      <Card className="mt-6 rounded-2xl p-6">
+        <div className="flex flex-col gap-2" role="alert">
+          <Display className="text-2xl">
+            {portal.httpStatus === 404 ? "This link has expired" : "We could not load your visit"}
+          </Display>
+          <p className="text-sm text-ink-muted">
+            {portal.httpStatus === 404
+              ? "Visit links stop working once a job is closed. If you were expecting an update, give us a call."
+              : "Check your connection and try again."}
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  const view = portal.data;
+
+  return (
+    <>
+      <header className="-mx-5 -mt-5 mb-1 flex items-center justify-between border-b border-border bg-panel px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-[27px] w-[27px] items-center justify-center rounded-lg bg-accent font-display text-[13px] font-bold text-accent-ink">
+            {view.company.name[0]}
+          </span>
+          <span className="text-[14.5px] font-medium">{view.company.name}</span>
+        </div>
+        <span className="font-mono text-[11px] text-ink-faint">#{view.job.number}</span>
+      </header>
+
+      <StatusCard view={view} />
+      {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
+      {view.quote ? <QuoteCard quote={view.quote} timezone={view.company.timezone} firstName={view.technician?.name.split(" ")[0]} /> : null}
+    </>
+  );
+}
+
+function StatusCard({ view }: { view: PortalView }) {
+  const { job, company } = view;
+  const step = STEP_OF[job.status];
+  const tz = company.timezone;
+
+  const headline =
+    job.status === "done"
+      ? "All done"
+      : job.status === "on_site"
+        ? "Your technician is here"
+        : job.status === "en_route" && job.scheduledStart
+          ? `Arriving ${clockWithPeriod(job.scheduledStart, tz)}`
+          : job.scheduledStart
+            ? shortDate(job.scheduledStart, tz)
+            : "Getting you booked in";
+
+  const detail =
+    job.status === "en_route"
+      ? `On the way to ${view.address.street}`
+      : job.scheduledStart && job.scheduledEnd && job.status !== "done"
+        ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} – ${clockWithPeriod(job.scheduledEnd, tz)}`
+        : job.title;
+
+  const eyebrow =
+    job.status === "en_route" ? "On the way" : job.status === "parts_on_order" ? "Waiting on parts" : STEPS[step];
+
+  return (
+    <Card className="rounded-2xl p-[18px] shadow-[0_1px_2px_rgba(23,28,34,0.05),0_8px_24px_-18px_rgba(23,28,34,0.25)]">
+      <div className="flex flex-col gap-3.5">
+        <div className="flex items-center gap-2">
+          <span className={`h-[7px] w-[7px] rounded-full ${step >= 1 ? "bg-done" : "bg-ink-faint"}`} />
+          <span className={`font-mono text-[10.5px] font-medium tracking-[0.1em] uppercase ${step >= 1 ? "text-done" : "text-ink-faint"}`}>
+            {eyebrow}
+          </span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Display className="text-[30px] leading-[1.05]">{headline}</Display>
+          <span className="text-[13.5px] text-ink-muted">{detail}</span>
+        </div>
+
+        <ol aria-label="Progress" className="flex items-center">
+          {STEPS.map((label, index) => (
+            <li key={label} className={`flex items-center ${index < STEPS.length - 1 ? "flex-1" : ""}`}>
+              <span
+                aria-label={`${label}${index <= step ? ", reached" : ""}`}
+                className={`h-[9px] w-[9px] shrink-0 rounded-full ${index <= step ? "bg-accent" : "border-2 border-border bg-panel"}`}
+              />
+              {index < STEPS.length - 1 ? <span className={`h-0.5 flex-1 ${index < step ? "bg-accent" : "bg-border"}`} /> : null}
+            </li>
+          ))}
+        </ol>
+        <div className="flex justify-between font-mono text-[9.5px] uppercase" aria-hidden="true">
+          {STEPS.map((label, index) => (
+            <span key={label} className={index <= step ? "text-ink-muted" : "text-ink-faint"}>
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TechnicianCard({ technician, phone }: { technician: NonNullable<PortalView["technician"]>; phone: string | null }) {
+  return (
+    <Card className="rounded-2xl p-3.5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] bg-raised text-[14.5px] font-medium text-ink-muted">
+          {initials(technician.name)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[14.5px] font-medium">{technician.name}</span>
+          <span className="text-[12.5px] text-ink-muted">
+            {[technician.title, technician.years ? `${technician.years} years` : null].filter(Boolean).join(" · ")}
+          </span>
+        </div>
+        {phone ? (
+          <a
+            href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+            aria-label={`Call ${phone}`}
+            className="flex h-11 w-11 items-center justify-center rounded-[13px] bg-accent-soft text-accent"
+          >
+            <PhoneIcon size={18} />
+          </a>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalView["quote"]>; timezone: string; firstName?: string }) {
+  const waiting = quote.status === "sent";
+
+  return (
+    <Card className="rounded-2xl p-[18px]">
+      <div className="flex flex-col gap-3.5">
+        <div className="flex items-center justify-between">
+          <span className={`font-mono text-[10.5px] font-medium tracking-[0.1em] uppercase ${waiting ? "text-waiting" : "text-done"}`}>
+            {waiting ? "Needs your approval" : quote.status === "approved" ? "Approved" : "Declined"}
+          </span>
+          {quote.sentAt ? <span className="font-mono text-[10.5px] text-ink-faint">Sent {clockWithPeriod(quote.sentAt, timezone)}</span> : null}
+        </div>
+
+        {quote.findings ? <p className="text-[13px] leading-relaxed text-ink-muted">{quote.findings}</p> : null}
+
+        <ul className="flex flex-col gap-2">
+          {quote.lineItems.map((item, index) => (
+            <li key={index} className="flex items-baseline justify-between gap-4">
+              <span className={`text-[13px] ${item.waived ? "text-done" : "text-ink-muted"}`}>
+                {item.waived ? `${item.description} waived` : item.description}
+              </span>
+              <span className={`font-mono text-[13px] ${item.waived ? "text-done" : ""}`}>
+                {item.waived ? `−${money(item.unitPriceCents * item.quantity)}` : money(item.amountCents)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="h-px bg-line" />
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13.5px] font-medium">Total</span>
+          <span className="font-display text-[26px] font-bold tracking-[-0.03em]">{money(quote.totalCents)}</span>
+        </div>
+
+        {waiting ? (
+          <p className="rounded-tile bg-raised px-3 py-2.5 text-center text-[12px] text-ink-muted">
+            Approving online arrives in the next release{firstName ? ` — for now, ${firstName} can take your go-ahead by phone` : ""}.
+          </p>
+        ) : null}
+      </div>
+    </Card>
+  );
+}

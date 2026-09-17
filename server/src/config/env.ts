@@ -1,11 +1,8 @@
 import "dotenv/config";
 
 /**
- * Every environment variable the server reads, resolved once at startup.
- *
- * Anything required is checked here rather than at the call site, so a missing
- * variable fails immediately with a readable message instead of surfacing as a
- * confusing runtime error an hour into a demo.
+ * Every environment variable the server reads, resolved once at startup, so a
+ * missing value fails at boot with a readable message rather than mid-demo.
  */
 
 function required(name: string, fallback?: string): string {
@@ -26,11 +23,17 @@ export const env = {
   isProduction,
   isTest: nodeEnv === "test",
   port: Number(process.env.PORT ?? 4200),
-  // In production the URI must be supplied; locally it falls back to the
-  // docker-compose instance so a fresh clone runs with no setup.
+  // Production must supply real values; locally both fall back so a fresh
+  // clone runs against the docker-compose Mongo with no setup.
   mongodbUri: isProduction
     ? required("MONGODB_URI")
     : required("MONGODB_URI", "mongodb://127.0.0.1:27030/kreworx"),
+  jwtSecret: isProduction
+    ? required("JWT_SECRET")
+    : required("JWT_SECRET", "local-development-secret-not-for-production"),
+  // Demo mode enables one-click sign-in as the seeded Northline staff and
+  // re-seeds the demo each day. Off unless asked for in production.
+  demoMode: (process.env.DEMO_MODE ?? (isProduction ? "false" : "true")) === "true",
   clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5200")
     .split(",")
     .map((origin) => origin.trim().replace(/\/$/, ""))

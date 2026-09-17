@@ -10,10 +10,9 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stage 1 — the foundation — is done: both deploys are
-> live, the design system is in place, and the app shell is real. The screens
-> behind it arrive stage by stage; each one says on the page what it will hold,
-> so nothing on screen is pretending to be finished.
+> **Status: in build.** Stages 1–2 are done: both deploys are live, and the app
+> runs on a seeded demo business with real sign-in and roles. Screens still to
+> come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -39,6 +38,32 @@ custom properties, mapped onto Tailwind colour names once. A component writes
 ops app embed a preview of the customer's view without a fight over a global
 class.
 
+## The demo
+
+Open the site and pick a seat at **Northline Mechanical**, a fictional heating
+and cooling contractor in Mokena, Illinois: the owner, the dispatcher, a
+technician, or a customer holding the link to her job. There is no sign-up, and
+the account menu switches seats at any time.
+
+The business is generated from a script in [`server/src/demo`](server/src/demo)
+that matches the design artboards: four crews, eleven jobs today with four done
+by mid-morning, $4,180 invoiced, and Amara Osei waiting on a $379 quote. The
+days around it are filled from templates. The server rebuilds the demo whenever
+the date changes in Chicago, so the board always shows this week.
+
+## How it is put together
+
+- **Tenancy.** Every document belongs to a company and every query filters by
+  the signed-in company. Tests check that one business cannot see another's jobs.
+- **Roles.** Owner, dispatcher and technician. A technician sees their own crew
+  and nothing else. The server enforces it; the navigation only reflects it.
+- **Sessions.** A signed token in an httpOnly cookie. The client calls `/api` on
+  its own domain and Vercel forwards it to Render, so the cookie is first-party
+  and survives Safari blocking third-party cookies.
+- **Customers have no accounts.** Each job has a long random link, and the portal
+  response is built from an allow-list so nothing internal can leak through it.
+- **Money** is whole cents, totalled by one function everywhere it is summed.
+
 ## Running it locally
 
 You need Node 22+ and either Docker or a MongoDB you can point at.
@@ -51,7 +76,7 @@ docker compose up -d                     # MongoDB on port 27030
 
 cd server && npm install
 cp .env.example .env
-npm run dev                              # http://localhost:4200
+npm run dev                              # http://localhost:4200, seeds the demo on start
 
 cd ../client && npm install
 npm run dev                              # http://localhost:5200
@@ -86,14 +111,14 @@ database and no service container in CI.
 
 **Client → Vercel.** Root Directory is `client`;
 [`client/vercel.json`](client/vercel.json) supplies the framework preset, the
-output directory and the SPA rewrite. Set `VITE_API_URL` to the Render URL plus
-`/api`.
+output directory, the SPA fallback, and the rewrite that forwards `/api` to
+Render. No environment variables.
 
 **API → Render.** [`render.yaml`](render.yaml) describes the service: root
 directory `server`, health check on `/api/health`, and the free plan while
 this is in build — free services sleep when idle, so move to starter before
-showing the URL to anyone. `MONGODB_URI` and `CLIENT_ORIGIN` are set in the
-dashboard.
+showing the URL to anyone. Set `MONGODB_URI`, `JWT_SECRET` (any long random
+string), `DEMO_MODE=true` and `CLIENT_ORIGIN` in the dashboard.
 
 **Database → MongoDB Atlas.**
 
