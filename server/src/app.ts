@@ -12,6 +12,7 @@ import demoRoutes from "./routes/demo.routes";
 import healthRoutes from "./routes/health.routes";
 import ownerRoutes from "./routes/owner.routes";
 import portalRoutes from "./routes/portal.routes";
+import realtimeRoutes from "./routes/realtime.routes";
 import scheduleRoutes from "./routes/schedule.routes";
 
 export function createApp(): Express {
@@ -37,7 +38,7 @@ export function createApp(): Express {
   // The API lives under /api so the same host could serve the built client
   // later without the two fighting over paths.
   app.use("/api", healthRoutes);
-  app.use("/api", loadSession, authRoutes, portalRoutes, scheduleRoutes, ownerRoutes, demoRoutes);
+  app.use("/api", loadSession, authRoutes, portalRoutes, scheduleRoutes, ownerRoutes, demoRoutes, realtimeRoutes);
 
   // Render's URL is a demo link people will paste into a browser; give them
   // something other than a 404 when they do.

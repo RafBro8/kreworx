@@ -19,6 +19,7 @@ import {
   type Tone,
 } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
+import { useLive } from "../../lib/useLive";
 
 // The board spans 7 AM to 5 PM: the working day plus the tail of a late job.
 const BOARD_START = 7 * 60;
@@ -85,6 +86,17 @@ export default function Dispatch() {
   }, [reloadDay, reloadQueue]);
   const closePanel = useCallback(() => setOpenJob(null), []);
 
+  // Someone else moving a job redraws this board, but only when it is the day
+  // being looked at - or when the whole demo was rebuilt underneath it.
+  const shownDate = day.status === "ready" ? day.data.date : null;
+  const { live } = useLive({
+    onBoardChanged: (event) => {
+      if (event.reason === "demo-reset" || event.dates.length === 0 || (shownDate && event.dates.includes(shownDate))) {
+        refresh();
+      }
+    },
+  });
+
   if (crews.status === "loading" || day.status === "loading") return <p className="text-sm text-ink-muted">Loading the board…</p>;
   if (crews.status === "error") return <ErrorNote message={crews.message} />;
   if (day.status === "error") return <ErrorNote message={day.message} />;
@@ -142,6 +154,12 @@ export default function Dispatch() {
           </button>
         ) : null}
         {day.refreshing ? <span className="text-[12px] text-ink-faint">Updating…</span> : null}
+        {live ? (
+          <span className="ml-auto flex items-center gap-2 text-[12px] text-ink-faint" title="Changes from other screens appear here as they happen">
+            <span className="h-[6px] w-[6px] rounded-full bg-done" />
+            Live
+          </span>
+        ) : null}
       </div>
 
       {moveError ? (

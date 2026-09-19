@@ -33,5 +33,9 @@ services:
       # One-click sign-in as the Northline staff, and a daily demo refresh.
       - key: DEMO_MODE
         value: "true"
+      # Where the browser opens its socket: the API host itself, because the
+      # rewrite that carries normal requests does not carry websockets.
+      - key: PUBLIC_API_URL
+        value: https://kreworx-api.onrender.com
       - key: CLIENT_ORIGIN
         sync: false # the Vercel URL, comma-separated if there is more than one

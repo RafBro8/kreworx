@@ -73,6 +73,12 @@ the date changes in Chicago, so the board always shows this week.
 - **Dragging is an enhancement, not the only way.** Jobs can be dragged between
   vans and hours, and the panel behind every job does the same with selects -
   which is the route on a touch screen or without a mouse.
+- **Live, without polling.** Events say only that something changed and which
+  day it belongs to; each screen then reloads through the API, so one set of
+  permission rules decides what anyone sees. The socket cannot use the session
+  cookie — it talks to the API host directly, where that cookie is
+  third-party — so a page trades its cookie for a one-minute ticket, fetched
+  again on every reconnect.
 - **The demo can be put back.** Everyone shares one business, so the owner has a
   reset that rebuilds today; it also rebuilds itself each morning.
 
@@ -130,7 +136,8 @@ Render. No environment variables.
 directory `server`, health check on `/api/health`, and the free plan while
 this is in build — free services sleep when idle, so move to starter before
 showing the URL to anyone. Set `MONGODB_URI`, `JWT_SECRET` (any long random
-string), `DEMO_MODE=true` and `CLIENT_ORIGIN` in the dashboard.
+string), `DEMO_MODE=true`, `PUBLIC_API_URL` (this service's own URL, where browsers open
+their sockets) and `CLIENT_ORIGIN` in the dashboard.
 
 **Database → MongoDB Atlas.**
 

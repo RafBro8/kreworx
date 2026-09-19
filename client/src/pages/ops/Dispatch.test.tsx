@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +6,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import AuthProvider from "../../auth/AuthProvider";
 import type { Crew, JobDetail, JobStatus, JobSummary, Role } from "../../lib/api";
+
+/**
+ * A socket the test drives by hand. `io()` hands this back, so the tests can
+ * deliver a "someone else changed the board" event without a server.
+ */
+const sockets: { handlers: Map<string, (payload: unknown) => void>; disconnected: boolean }[] = [];
+
+vi.mock("socket.io-client", () => ({
+  io: () => {
+    const socket = { handlers: new Map<string, (payload: unknown) => void>(), disconnected: false };
+    sockets.push(socket);
+    return {
+      on: (name: string, handler: (payload: unknown) => void) => socket.handlers.set(name, handler),
+      disconnect: () => {
+        socket.disconnected = true;
+      },
+    };
+  },
+}));
+
+/** The socket the page opened, once it has asked for its ticket. */
+async function liveSocket() {
+  await waitFor(() => expect(sockets.length).toBeGreaterThan(0));
+  return sockets.at(-1)!;
+}
+
+const fire = (socket: Awaited<ReturnType<typeof liveSocket>>, event: string, payload?: unknown) =>
+  act(() => {
+    socket.handlers.get(event)?.(payload);
+  });
 
 const TZ = "America/Chicago";
 // Pin "today" so the board, the date heading and the schedule form agree.
@@ -126,6 +156,7 @@ function fakeServer(role: Role) {
     calls.push({ method, url, body });
 
     if (url === "/api/health") return json({ status: "ok", uptimeSeconds: 1, commit: null, demoMode: true, database: { connected: true } });
+    if (url === "/api/realtime/ticket") return json({ ticket: "a-ticket", url: null });
     if (url === "/api/auth/me") {
       const user = role === "technician" ? { id: "u-tomas", name: "Tomas Delgado", role, title: "Lead technician" } : { id: "u-dana", name: "Dana Morales", role, title: "Dispatcher" };
       return json({ user, company: { id: "co", name: "Northline Mechanical", timezone: TZ, isDemo: false } });
@@ -177,6 +208,7 @@ function renderBoard(path = "/dispatch") {
 describe("the dispatch board", () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    sockets.length = 0;
   });
 
   afterEach(() => {
@@ -370,6 +402,69 @@ describe("the dispatch board", () => {
       renderBoard();
 
       expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "false");
+    });
+  });
+
+  describe("live updates", () => {
+    it("redraws when someone else changes today, and says it is live", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+
+      const socket = await liveSocket();
+      fire(socket, "connect");
+      expect(await screen.findByText("Live")).toBeInTheDocument();
+
+      // Another dispatcher marks Amara's job as arrived.
+      const osei = server.jobs.get("j-4471")!;
+      server.jobs.set("j-4471", { ...osei, status: "on_site" });
+      fire(socket, "board:changed", { jobId: "j-4471", dates: ["2026-09-16"], reason: "status" });
+
+      expect(await within(screen.getByRole("list", { name: "Delgado's jobs" })).findByText(/On site/i)).toBeInTheDocument();
+    });
+
+    it("ignores a change to a day it is not showing", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+      const socket = await liveSocket();
+
+      const before = server.calls.filter((call) => call.url.startsWith("/api/jobs")).length;
+      fire(socket, "board:changed", { jobId: "j-9999", dates: ["2026-09-24"], reason: "schedule" });
+
+      expect(server.calls.filter((call) => call.url.startsWith("/api/jobs")).length).toBe(before);
+    });
+
+    it("reloads everything when the demo is rebuilt underneath it", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+      const socket = await liveSocket();
+
+      const before = server.calls.filter((call) => call.url.startsWith("/api/jobs")).length;
+      fire(socket, "board:changed", { jobId: "", dates: [], reason: "demo-reset" });
+
+      await waitFor(() => expect(server.calls.filter((call) => call.url.startsWith("/api/jobs")).length).toBeGreaterThan(before));
+    });
+
+    it("drops the Live badge when the connection goes, and closes the socket on leaving", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      const view = renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+
+      const socket = await liveSocket();
+      fire(socket, "connect");
+      expect(await screen.findByText("Live")).toBeInTheDocument();
+
+      fire(socket, "disconnect");
+      await waitFor(() => expect(screen.queryByText("Live")).toBeNull());
+
+      view.unmount();
+      expect(socket.disconnected).toBe(true);
     });
   });
 

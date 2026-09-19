@@ -5,6 +5,7 @@ import { PhoneIcon } from "../../components/icons";
 import { getPortal, type JobStatus, type PortalView } from "../../lib/api";
 import { clockWithPeriod, initials, money, shortDate } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
+import { useLive } from "../../lib/useLive";
 
 const STEPS = ["Booked", "En route", "On site", "Done"] as const;
 
@@ -27,6 +28,11 @@ const STEP_OF: Record<JobStatus, number> = {
 export default function PortalJob() {
   const { token = "" } = useParams();
   const portal = useApi(() => getPortal(token), token);
+
+  // The link is the credential here too: it buys a socket for this one job, so
+  // the page moves the moment the technician does, with nothing to refresh.
+  const { reload } = portal;
+  useLive({ onJobChanged: () => reload() }, { portalToken: token, enabled: Boolean(token) });
 
   if (portal.status === "loading") {
     return <p className="py-10 text-center text-sm text-ink-muted">Loading your visit…</p>;

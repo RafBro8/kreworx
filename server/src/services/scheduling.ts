@@ -1,7 +1,8 @@
 import mongoose, { type Types } from "mongoose";
 
 import { ApiError } from "../lib/ApiError";
-import { clockLabel } from "../lib/dates";
+import { clockLabel, dateIn } from "../lib/dates";
+import { notifyCompany, notifyJob } from "../realtime/io";
 import type { AuthContext } from "../middleware/auth";
 import { Company, Crew, Customer, Job } from "../models";
 import type { JobStatus } from "../models/Job";
@@ -42,6 +43,12 @@ export function allowedStatuses(role: AuthContext["role"], current: JobStatus): 
 
 export function canReschedule(role: AuthContext["role"], current: JobStatus): boolean {
   return role !== "technician" && MOVABLE.includes(current);
+}
+
+/** A business thinks in its own local days; events are labelled with those. */
+async function companyTimezone(companyId: Types.ObjectId): Promise<string> {
+  const company = await Company.findById(companyId, { timezone: 1 }).lean();
+  return company?.timezone ?? "UTC";
 }
 
 // ---- visibility ----------------------------------------------------------------
@@ -96,6 +103,9 @@ export async function scheduleJob(
   if (!(minutes > 0)) throw ApiError.badRequest("A job has to end after it starts");
   if (minutes > MAX_JOB_MINUTES) throw ApiError.badRequest("A single visit cannot run longer than 12 hours");
 
+  const zone = await companyTimezone(auth.companyId);
+  const touchedDays = new Set<string>([dateIn(request.start, zone)]);
+
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
@@ -140,6 +150,8 @@ export async function scheduleJob(
 
       const now = new Date();
       const becomesScheduled = job.status === "unscheduled";
+      // The day it is leaving needs redrawing too, not just the day it lands on.
+      if (job.scheduledStart) touchedDays.add(dateIn(job.scheduledStart, zone));
       job.crewId = crew._id;
       job.scheduledStart = request.start;
       job.scheduledEnd = request.end;
@@ -154,6 +166,9 @@ export async function scheduleJob(
   } finally {
     await session.endSession();
   }
+
+  notifyCompany(auth.companyId.toString(), { jobId, dates: [...touchedDays], reason: "schedule" });
+  notifyJob(jobId, { status: "scheduled" });
 }
 
 /** Takes a job off the board and back into the unscheduled queue. */
@@ -163,9 +178,14 @@ export async function unscheduleJob(auth: AuthContext, jobId: string) {
   const updated = await Job.findOneAndUpdate(
     { _id: jobId, companyId: auth.companyId, status: { $in: ["scheduled", "parts_on_order"] } },
     { $set: { status: "unscheduled", crewId: null, scheduledStart: null, scheduledEnd: null } },
-    { returnDocument: "after" },
+    { returnDocument: "before" },
   );
-  if (updated) return;
+  if (updated) {
+    const zone = await companyTimezone(auth.companyId);
+    const dates = updated.scheduledStart ? [dateIn(updated.scheduledStart, zone)] : [];
+    notifyCompany(auth.companyId.toString(), { jobId, dates, reason: "unschedule" });
+    return;
+  }
 
   const exists = await Job.exists({ _id: jobId, companyId: auth.companyId });
   if (!exists) throw ApiError.notFound("Job not found");
@@ -202,4 +222,10 @@ export async function changeStatus(auth: AuthContext, jobId: string, expected: J
   if (updated.modifiedCount === 0) {
     throw ApiError.conflict("This job was changed by someone else while you were looking at it");
   }
+
+  const zone = await companyTimezone(auth.companyId);
+  const dates = job.scheduledStart ? [dateIn(job.scheduledStart, zone)] : [];
+  notifyCompany(auth.companyId.toString(), { jobId, dates, reason: "status" });
+  // The customer watching their link sees the same change at the same moment.
+  notifyJob(jobId, { status: next });
 }

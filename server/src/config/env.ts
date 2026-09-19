@@ -34,6 +34,10 @@ export const env = {
   // Demo mode enables one-click sign-in as the seeded Northline staff and
   // re-seeds the demo each day. Off unless asked for in production.
   demoMode: (process.env.DEMO_MODE ?? (isProduction ? "false" : "true")) === "true",
+  // Where the browser should open its socket. The API is normally reached
+  // through the client domain, which does not carry websockets, so this is the
+  // API host itself. Empty means same origin, which is how local dev works.
+  publicApiUrl: (process.env.PUBLIC_API_URL ?? "").replace(/\/$/, ""),
   clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5200")
     .split(",")
     .map((origin) => origin.trim().replace(/\/$/, ""))

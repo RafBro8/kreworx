@@ -5,6 +5,7 @@ import { seedDemo } from "../demo/seedDemo";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireRole } from "../middleware/auth";
 import { Company } from "../models";
+import { notifyCompany } from "../realtime/io";
 
 const router = Router();
 
@@ -30,6 +31,9 @@ router.post("/demo/reset", requireRole("owner"), async (req, res) => {
     resetting = null;
   });
   await resetting;
+
+  // Every open board reloads: the whole day has been rebuilt underneath it.
+  notifyCompany(auth.companyId.toString(), { jobId: "", dates: [], reason: "demo-reset" });
 
   res.status(204).end();
 });
