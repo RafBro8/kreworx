@@ -61,6 +61,13 @@ export function useLive(handlers: Handlers, { portalToken, enabled = true }: Opt
 
       socket = io(host ?? window.location.origin, {
         transports: ["websocket"],
+        // Give up rather than retry forever. A socket that cannot connect —
+        // misconfigured host, API asleep — would otherwise fetch a ticket every
+        // few seconds for as long as the tab is open, which is indistinguishable
+        // from a bot hammering the API. Live updates are a bonus; the page works
+        // without them.
+        reconnectionAttempts: 6,
+        reconnectionDelayMax: 30_000,
         auth: (send) => {
           getTicket(portalToken)
             .then((fresh) => send({ ticket: fresh.ticket }))
