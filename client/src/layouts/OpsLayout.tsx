@@ -97,6 +97,18 @@ export default function OpsLayout() {
               same page must remount it, or it keeps the last person's data. */}
           <Outlet key={me.user.id} />
         </main>
+
+        <footer className="shrink-0 border-t border-line px-6 py-3 text-[11px] text-ink-faint">
+          Designed &amp; Built by{" "}
+            <a
+              href="https://goodlookingdigital.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              Good Looking Digital
+            </a>
+        </footer>
       </div>
     </div>
   );

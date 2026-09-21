@@ -120,7 +120,18 @@ export default function Welcome() {
         ) : null}
 
         <footer className="mt-auto text-xs text-ink-faint">
-          Northline Mechanical, its staff and customers are fictional. The data resets every day.
+          <p>Northline Mechanical, its staff and customers are fictional. The data resets every day.</p>
+          <p className="mt-1">
+            Designed &amp; Built by{" "}
+            <a
+              href="https://goodlookingdigital.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              Good Looking Digital
+            </a>
+          </p>
         </footer>
       </div>
     </div>

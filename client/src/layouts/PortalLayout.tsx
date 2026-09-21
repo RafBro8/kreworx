@@ -12,7 +12,20 @@ export default function PortalLayout() {
         <main className="flex flex-1 flex-col gap-3 p-5">
           <Outlet />
         </main>
-        <footer className="px-5 pb-6 text-center text-[11px] text-ink-faint">Powered by Kreworx</footer>
+        <footer className="px-5 pb-6 text-center text-[11px] text-ink-faint">
+          <p>Powered by Kreworx</p>
+          <p className="mt-1">
+            Designed &amp; Built by{" "}
+            <a
+              href="https://goodlookingdigital.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              Good Looking Digital
+            </a>
+          </p>
+        </footer>
       </div>
     </div>
   );
