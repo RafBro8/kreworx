@@ -166,7 +166,8 @@ function fakeServer(role: Role) {
     if (url.startsWith("/api/jobs?") || url === "/api/jobs") {
       const date = new URL(url, "http://x").searchParams.get("date") ?? "2026-09-16";
       const onDay = [...jobs.values()].filter((job) => job.scheduledStart?.startsWith(date) && (role !== "technician" || job.crew?.id === "c-delgado"));
-      return json({ date, timezone: TZ, jobs: onDay.map(summary) });
+      // 10:20 AM on the demo clock, the moment the designs show.
+      return json({ date, timezone: TZ, demo: { minutes: 620, speed: 6.67, endsInSeconds: 3600 }, jobs: onDay.map(summary) });
     }
 
     const match = url.match(/^\/api\/jobs\/([^/]+)(?:\/(schedule|status|unschedule))?$/);
@@ -402,6 +403,30 @@ describe("the dispatch board", () => {
       renderBoard();
 
       expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "false");
+    });
+  });
+
+  describe("the demo clock", () => {
+    it("shows where the day has got to, with the now-line in the right place", async () => {
+      vi.stubGlobal("fetch", fakeServer("dispatcher").fetch);
+      renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+
+      expect(screen.getByText("Demo clock 10:20 AM")).toBeInTheDocument();
+      // 10:20 is 200 minutes into a board running 7 AM to 5 PM: a third of the way across.
+      expect((document.querySelector("[data-now-line]") as HTMLElement).style.left).toContain("33.33");
+    });
+
+    it("draws no now-line on a day that is not today", async () => {
+      vi.stubGlobal("fetch", fakeServer("dispatcher").fetch);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderBoard();
+      await screen.findByRole("list", { name: "Delgado's jobs" });
+
+      await user.click(screen.getByRole("button", { name: "Next day" }));
+      await screen.findByRole("heading", { name: "Thursday, September 17" });
+
+      expect(screen.queryByText(/Demo clock/)).toBeNull();
     });
   });
 

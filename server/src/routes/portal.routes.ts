@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { demoClockPayload } from "../demo/clock";
 import { ApiError } from "../lib/ApiError";
 import { Company, Crew, Customer, Job, Property, Quote, User } from "../models";
 import { lineAmountCents, totalCents } from "../models/lineItems";
@@ -35,6 +36,7 @@ router.get("/portal/:token", async (req, res) => {
 
   res.json({
     company: { name: company.name, phone: company.phone ?? null, timezone: company.timezone },
+    demo: demoClockPayload(),
     customer: { firstName: customer.name.split(" ")[0] },
     job: {
       number: job.number,

@@ -9,6 +9,7 @@ import { getCrews, getJobs, getUnscheduledJobs, scheduleJob, type Crew, type Job
 import {
   addDays,
   clock,
+  clockFromMinutes,
   dateInZone,
   initials,
   longDate,
@@ -19,6 +20,7 @@ import {
   type Tone,
 } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
+import { useDemoMinutes } from "../../lib/useDemoClock";
 import { useLive } from "../../lib/useLive";
 
 // The board spans 7 AM to 5 PM: the working day plus the tail of a late job.
@@ -89,6 +91,7 @@ export default function Dispatch() {
   // Someone else moving a job redraws this board, but only when it is the day
   // being looked at - or when the whole demo was rebuilt underneath it.
   const shownDate = day.status === "ready" ? day.data.date : null;
+  const demoMinutes = useDemoMinutes(day.status === "ready" ? day.data.demo : null);
   const { live } = useLive({
     onBoardChanged: (event) => {
       if (event.reason === "demo-reset" || event.dates.length === 0 || (shownDate && event.dates.includes(shownDate))) {
@@ -154,6 +157,14 @@ export default function Dispatch() {
           </button>
         ) : null}
         {day.refreshing ? <span className="text-[12px] text-ink-faint">Updating…</span> : null}
+        {isToday && demoMinutes !== null ? (
+          <span
+            className="rounded-full border border-accent-line bg-accent-soft px-2.5 py-1 font-mono text-[11px] text-accent"
+            title="The demo day runs fast so you can watch it move. It restarts every hour."
+          >
+            Demo clock {clockFromMinutes(demoMinutes)}
+          </span>
+        ) : null}
         {live ? (
           <span className="ml-auto flex items-center gap-2 text-[12px] text-ink-faint" title="Changes from other screens appear here as they happen">
             <span className="h-[6px] w-[6px] rounded-full bg-done" />
@@ -173,7 +184,20 @@ export default function Dispatch() {
 
       <div className="flex flex-col gap-6 xl:flex-row">
         <section aria-label="Schedule" className={`min-w-0 flex-1 overflow-x-auto transition-opacity ${day.refreshing ? "opacity-70" : ""}`}>
-          <div className="min-w-[860px]">
+          <div className="relative min-w-[860px]">
+            {/* Where the day has got to. Only on today: on any other day there
+                is no "now" to draw. */}
+            {isToday && demoMinutes !== null && demoMinutes >= BOARD_START && demoMinutes <= BOARD_END ? (
+              <div
+                aria-hidden="true"
+                data-now-line=""
+                className="pointer-events-none absolute top-6 bottom-0 z-10 w-px bg-accent/70"
+                style={{ left: `calc(176px + ${((demoMinutes - BOARD_START) / SPAN) * 100}% - ${((demoMinutes - BOARD_START) / SPAN) * 176}px)` }}
+              >
+                <span className="absolute -top-1.5 -left-[3px] h-[7px] w-[7px] rounded-full bg-accent" />
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-[176px_1fr] border-b border-line pb-3">
               <Eyebrow>Crew</Eyebrow>
               <div className="relative h-4">

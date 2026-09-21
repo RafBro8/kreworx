@@ -94,7 +94,10 @@ export type JobSummary = {
   address: { street: string; city: string } | null;
 };
 
-export type DayOfJobs = { date: string; timezone: string; jobs: JobSummary[] };
+/** Present only on the demo deployment: which minute of the fast day it is. */
+export type DemoClockPayload = { minutes: number; speed: number; endsInSeconds: number } | null;
+
+export type DayOfJobs = { date: string; timezone: string; demo: DemoClockPayload; jobs: JobSummary[] };
 
 export type OwnerSummary = {
   date: string;
@@ -107,6 +110,7 @@ export type OwnerSummary = {
 
 export type PortalView = {
   company: { name: string; phone: string | null; timezone: string };
+  demo: DemoClockPayload;
   customer: { firstName: string };
   job: {
     number: number;

@@ -48,6 +48,7 @@ const todaysJobs: JobSummary[] = [
 
 const portal: PortalView = {
   company: { name: "Northline Mechanical", phone: "(708) 555-0142", timezone: TZ },
+  demo: null,
   customer: { firstName: "Amara" },
   job: { number: 4471, title: "No heat — priority", status: "en_route", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", timeline: [] },
   address: { street: "45 Linden Ave", city: "Mokena" },
@@ -265,6 +266,36 @@ describe("Kreworx", () => {
   });
 
   describe("the customer portal", () => {
+    it("counts down how far out the van is while it is on the way", async () => {
+      // The demo clock reads 10:15; her window opens at 10:30 in Mokena.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({ ...portal, demo: { minutes: 615, speed: 7, endsInSeconds: 3000 } })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText(/About 15 minutes out/)).toBeInTheDocument();
+      expect(screen.getByText(/45 Linden Ave/)).toBeInTheDocument();
+    });
+
+    it("says the van is about to arrive once the window has opened", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({ ...portal, demo: { minutes: 632, speed: 7, endsInSeconds: 3000 } })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText(/Arriving any minute now/)).toBeInTheDocument();
+    });
+
     it("opens from the link alone, in the customer theme, with her quote", async () => {
       const { container } = renderAt("/portal/osei-token-123456789");
 

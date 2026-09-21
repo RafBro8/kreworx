@@ -4,6 +4,7 @@ import { createApp } from "./app";
 import { connectDatabase, disconnectDatabase } from "./config/db";
 import { env } from "./config/env";
 import { ensureDemoIsFresh } from "./demo/seedDemo";
+import { tickDemo } from "./demo/simulator";
 import { ensureIndexes } from "./models";
 import { closeRealtime, createRealtime } from "./realtime/io";
 
@@ -14,6 +15,13 @@ async function main(): Promise<void> {
 
   // Checked hourly so a long-running instance rolls the demo over to the new
   // day on its own; on the free plan the check on boot usually gets there first.
+  // Walks the demo day forward: crews set off, arrive and finish while someone
+  // is watching, rather than the board standing still.
+  const simulation = setInterval(() => {
+    tickDemo().catch((error: unknown) => console.error("Demo tick failed:", error));
+  }, 20_000);
+  simulation.unref();
+
   const demoTimer = setInterval(() => {
     ensureDemoIsFresh().catch((error: unknown) => console.error("Demo refresh failed:", error));
   }, 60 * 60 * 1000);

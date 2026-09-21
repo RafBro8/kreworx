@@ -42,6 +42,9 @@ const jobSchema = new Schema(
     // thing standing between the internet and the details of this job.
     portalToken: { type: String, required: true, unique: true },
     timeline: [timelineEntrySchema],
+    // Set when a person changes a job, so the demo simulator stops walking
+    // that one forward and leaves their change standing.
+    manualOverride: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

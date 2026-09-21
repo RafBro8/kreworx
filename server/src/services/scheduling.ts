@@ -156,6 +156,7 @@ export async function scheduleJob(
       job.scheduledStart = request.start;
       job.scheduledEnd = request.end;
       job.estimatedMinutes = minutes;
+      job.manualOverride = true;
       if (becomesScheduled) {
         job.status = "scheduled";
         job.schedulingNote = undefined;
@@ -177,7 +178,7 @@ export async function unscheduleJob(auth: AuthContext, jobId: string) {
 
   const updated = await Job.findOneAndUpdate(
     { _id: jobId, companyId: auth.companyId, status: { $in: ["scheduled", "parts_on_order"] } },
-    { $set: { status: "unscheduled", crewId: null, scheduledStart: null, scheduledEnd: null } },
+    { $set: { status: "unscheduled", crewId: null, scheduledStart: null, scheduledEnd: null, manualOverride: true } },
     { returnDocument: "before" },
   );
   if (updated) {
@@ -217,7 +218,7 @@ export async function changeStatus(auth: AuthContext, jobId: string, expected: J
 
   const updated = await Job.updateOne(
     { _id: job._id as Types.ObjectId, companyId: auth.companyId, status: expected },
-    { $set: { status: next }, $push: { timeline: { status: next, at: new Date() } } },
+    { $set: { status: next, manualOverride: true }, $push: { timeline: { status: next, at: new Date() } } },
   );
   if (updated.modifiedCount === 0) {
     throw ApiError.conflict("This job was changed by someone else while you were looking at it");

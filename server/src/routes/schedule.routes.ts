@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Types } from "mongoose";
 import { z } from "zod";
 
+import { demoClockPayload } from "../demo/clock";
 import { dateIn, dayRange } from "../lib/dates";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireAuth, requireRole, type AuthContext } from "../middleware/auth";
@@ -123,7 +124,7 @@ router.get("/jobs", async (req, res) => {
     ...(crewIds && { crewId: { $in: crewIds } }),
   });
 
-  res.json({ date, timezone: company.timezone, jobs: await withCustomers(jobs) });
+  res.json({ date, timezone: company.timezone, demo: demoClockPayload(), jobs: await withCustomers(jobs) });
 });
 
 router.get("/jobs/unscheduled", requireRole("owner", "dispatcher"), async (req, res) => {

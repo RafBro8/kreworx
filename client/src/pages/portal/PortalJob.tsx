@@ -3,8 +3,9 @@ import { useParams } from "react-router";
 import { Card, Display } from "../../components/ui";
 import { PhoneIcon } from "../../components/icons";
 import { getPortal, type JobStatus, type PortalView } from "../../lib/api";
-import { clockWithPeriod, initials, money, shortDate } from "../../lib/format";
+import { clockWithPeriod, initials, minutesOfDay, money, shortDate } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
+import { useDemoMinutes } from "../../lib/useDemoClock";
 import { useLive } from "../../lib/useLive";
 
 const STEPS = ["Booked", "En route", "On site", "Done"] as const;
@@ -31,6 +32,7 @@ export default function PortalJob() {
 
   // The link is the credential here too: it buys a socket for this one job, so
   // the page moves the moment the technician does, with nothing to refresh.
+  const demoMinutes = useDemoMinutes(portal.status === "ready" ? portal.data.demo : null, 2000);
   const { reload } = portal;
   useLive({ onJobChanged: () => reload() }, { portalToken: token, enabled: Boolean(token) });
 
@@ -69,14 +71,14 @@ export default function PortalJob() {
         <span className="font-mono text-[11px] text-ink-faint">#{view.job.number}</span>
       </header>
 
-      <StatusCard view={view} />
+      <StatusCard view={view} demoMinutes={demoMinutes} />
       {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
       {view.quote ? <QuoteCard quote={view.quote} timezone={view.company.timezone} firstName={view.technician?.name.split(" ")[0]} /> : null}
     </>
   );
 }
 
-function StatusCard({ view }: { view: PortalView }) {
+function StatusCard({ view, demoMinutes }: { view: PortalView; demoMinutes: number | null }) {
   const { job, company } = view;
   const step = STEP_OF[job.status];
   const tz = company.timezone;
@@ -92,9 +94,17 @@ function StatusCard({ view }: { view: PortalView }) {
             ? shortDate(job.scheduledStart, tz)
             : "Getting you booked in";
 
+  // How far out the van is, in the customer words the design uses.
+  const minutesOut =
+    demoMinutes !== null && job.scheduledStart ? Math.round(minutesOfDay(job.scheduledStart, tz) - demoMinutes) : null;
+
   const detail =
     job.status === "en_route"
-      ? `On the way to ${view.address.street}`
+      ? minutesOut !== null && minutesOut > 0
+        ? `About ${minutesOut} ${minutesOut === 1 ? "minute" : "minutes"} out · on the way to ${view.address.street}`
+        : minutesOut !== null
+          ? `Arriving any minute now · ${view.address.street}`
+          : `On the way to ${view.address.street}`
       : job.scheduledStart && job.scheduledEnd && job.status !== "done"
         ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} – ${clockWithPeriod(job.scheduledEnd, tz)}`
         : job.title;
