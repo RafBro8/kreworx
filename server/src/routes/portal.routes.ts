@@ -24,7 +24,7 @@ router.get("/portal/:token", async (req, res) => {
   if (!job || job.status === "cancelled") throw ApiError.notFound("This link has expired or is not valid");
 
   const [company, customer, property, crew, quote] = await Promise.all([
-    Company.findById(job.companyId, { name: 1, phone: 1, timezone: 1 }).lean(),
+    Company.findById(job.companyId, { name: 1, phone: 1, timezone: 1, demoCycleStartedAt: 1 }).lean(),
     Customer.findById(job.customerId, { name: 1 }).lean(),
     Property.findById(job.propertyId, { street: 1, city: 1 }).lean(),
     job.crewId ? Crew.findById(job.crewId, { leadId: 1 }).lean() : null,
@@ -36,7 +36,7 @@ router.get("/portal/:token", async (req, res) => {
 
   res.json({
     company: { name: company.name, phone: company.phone ?? null, timezone: company.timezone },
-    demo: demoClockPayload(),
+    demo: demoClockPayload(company.demoCycleStartedAt),
     customer: { firstName: customer.name.split(" ")[0] },
     job: {
       number: job.number,

@@ -109,7 +109,7 @@ router.get("/jobs", async (req, res) => {
   const parsed = dayQuery.safeParse(req.query);
   if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid date");
 
-  const company = await Company.findById(auth.companyId, { timezone: 1 }).lean();
+  const company = await Company.findById(auth.companyId, { timezone: 1, demoCycleStartedAt: 1 }).lean();
   if (!company) throw ApiError.unauthorized();
 
   // "Today" is today where the business is, not where the server is.
@@ -124,7 +124,7 @@ router.get("/jobs", async (req, res) => {
     ...(crewIds && { crewId: { $in: crewIds } }),
   });
 
-  res.json({ date, timezone: company.timezone, demo: demoClockPayload(), jobs: await withCustomers(jobs) });
+  res.json({ date, timezone: company.timezone, demo: demoClockPayload(company.demoCycleStartedAt), jobs: await withCustomers(jobs) });
 });
 
 router.get("/jobs/unscheduled", requireRole("owner", "dispatcher"), async (req, res) => {

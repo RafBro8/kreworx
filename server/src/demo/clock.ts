@@ -5,13 +5,15 @@ import { env } from "../config/env";
  *
  * A real day is no use in a demo: someone opening the link at nine in the
  * evening would find every job finished and nothing moving. So the working day
- * is replayed over each real hour. It starts where the designs start — twenty
- * past ten, Tomas on his way to Amara's, the $379 quote unanswered — and runs
- * to the end of the day, then the hour turns and the demo is rebuilt back to
- * that same moment.
+ * is replayed over an hour. It starts where the designs start — Tomas on his
+ * way to Amara's, the $379 quote unanswered — and ends as the last job of the
+ * day finishes, at which point the demo is rebuilt and the day begins again.
+ *
+ * The hour is counted from when the demo was last built, not from the clock on
+ * the wall, so pressing Reset really does hand you a fresh morning.
  *
  * Everything the app shows is a real timestamp; this only decides which moment
- * of the day the demo is currently standing in.
+ * of the day the demo is standing in.
  */
 
 /**
@@ -21,13 +23,13 @@ import { env } from "../config/env";
  * 10:20 that would be over in ninety seconds of real time.
  */
 export const STORY_START_MINUTES = 10 * 60;
-/** And where it ends: 5 PM, after the last job on the board. */
-export const DAY_END_MINUTES = 17 * 60;
+/** And where it ends: 4 PM, when the last job on the board is finished. */
+export const DAY_END_MINUTES = 16 * 60;
 
-const CYCLE_MS = 60 * 60 * 1000;
+export const CYCLE_MS = 60 * 60 * 1000;
 const SPAN_MINUTES = DAY_END_MINUTES - STORY_START_MINUTES;
 
-/** Demo minutes that pass per real minute — about 6.7, so a two-hour job runs in eighteen. */
+/** Demo minutes per real minute — six, so a two-hour job runs in twenty. */
 export const SPEED = SPAN_MINUTES / 60;
 
 export type DemoClock = {
@@ -35,27 +37,33 @@ export type DemoClock = {
   minutes: number;
   /** How fast the demo day runs, in demo minutes per real minute. */
   speed: number;
-  /** When the current run of the day began. A new one means the demo was rebuilt. */
-  cycleStartedAt: Date;
+  /** True once the day has run its course and the demo is due to be rebuilt. */
+  finished: boolean;
   /** Seconds until the day restarts. */
   endsInSeconds: number;
 };
 
-export function demoClock(now: Date = new Date()): DemoClock {
-  const cycleStartedAt = new Date(Math.floor(now.getTime() / CYCLE_MS) * CYCLE_MS);
-  const elapsed = now.getTime() - cycleStartedAt.getTime();
+export function demoClock(now: Date = new Date(), cycleStartedAt?: Date | null): DemoClock {
+  // With no record of when the day began — a fresh database, or a demo built
+  // by an older version — treat the current hour as the run.
+  const startedAt = cycleStartedAt ?? new Date(Math.floor(now.getTime() / CYCLE_MS) * CYCLE_MS);
+  const elapsed = Math.max(now.getTime() - startedAt.getTime(), 0);
+  const through = Math.min(elapsed / CYCLE_MS, 1);
 
   return {
-    minutes: STORY_START_MINUTES + (elapsed / CYCLE_MS) * SPAN_MINUTES,
+    minutes: STORY_START_MINUTES + through * SPAN_MINUTES,
     speed: SPEED,
-    cycleStartedAt,
-    endsInSeconds: Math.round((CYCLE_MS - elapsed) / 1000),
+    finished: elapsed >= CYCLE_MS,
+    endsInSeconds: Math.max(Math.round((CYCLE_MS - elapsed) / 1000), 0),
   };
 }
 
 /** What the browser needs to keep its own copy of the demo clock ticking. */
-export function demoClockPayload(now: Date = new Date()): { minutes: number; speed: number; endsInSeconds: number } | null {
+export function demoClockPayload(
+  cycleStartedAt?: Date | null,
+  now: Date = new Date(),
+): { minutes: number; speed: number; endsInSeconds: number } | null {
   if (!env.demoMode) return null;
-  const clock = demoClock(now);
+  const clock = demoClock(now, cycleStartedAt);
   return { minutes: Math.round(clock.minutes), speed: clock.speed, endsInSeconds: clock.endsInSeconds };
 }

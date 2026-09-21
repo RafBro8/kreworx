@@ -55,9 +55,10 @@ The day also moves. It runs on a fast clock: the working day replays over each
 real hour, so crews set off, arrive and finish while you watch, and the
 customer page counts down the arrival. The board shows where the day has got
 to, the clock is labelled so nobody mistakes it for real time, and anything a
-person changes is left alone by the simulation. The whole demo is rebuilt when
-the hour turns, when the date changes in Chicago, or when the owner presses
-reset.
+person changes is left alone by the simulation. The hour is counted from when the demo was last built, not from the clock on
+the wall, so the owner pressing Reset really does hand back a fresh morning.
+The demo also rebuilds itself when the day finishes and when the date changes
+in Chicago.
 
 ## How it is put together
 

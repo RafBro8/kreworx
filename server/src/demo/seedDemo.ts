@@ -79,7 +79,7 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
   const highest = Math.max(...plan.jobs.map((job) => job.number));
   await Counter.updateOne({ companyId, key: "job" }, { $set: { seq: highest } }, { upsert: true });
 
-  await Company.updateOne({ _id: companyId }, { $set: { demoSeededFor: plan.today, demoSeedVersion: DEMO_SEED_VERSION } });
+  await Company.updateOne({ _id: companyId }, { $set: { demoSeededFor: plan.today, demoSeedVersion: DEMO_SEED_VERSION, demoCycleStartedAt: now } });
 
   return { companyId, today: plan.today, jobs: plan.jobs.length };
 }

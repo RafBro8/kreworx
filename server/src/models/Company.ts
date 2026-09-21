@@ -21,6 +21,9 @@ const companySchema = new Schema(
     // Which version of the demo script built the data, so a change to the
     // script is picked up on the next deploy instead of the next day.
     demoSeedVersion: { type: Number },
+    // When this run of the demo day began. The fast clock counts from here, so
+    // rebuilding the demo really does start the morning over.
+    demoCycleStartedAt: { type: Date },
   },
   { timestamps: true },
 );

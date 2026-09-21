@@ -38,8 +38,6 @@ export function statusAt(demoMinutes: number, startMinutes: number, endMinutes: 
   return "scheduled";
 }
 
-let lastCycle: number | null = null;
-
 /**
  * One step of the demo day. Called on a timer while DEMO_MODE is on.
  * Returns what it did, which is what the tests read.
@@ -47,19 +45,20 @@ let lastCycle: number | null = null;
 export async function tickDemo(now: Date = new Date()): Promise<{ moved: number; rebuilt: boolean }> {
   if (!env.demoMode) return { moved: 0, rebuilt: false };
 
-  const company = await Company.findOne({ slug: COMPANY.slug, isDemo: true }, { timezone: 1 }).lean();
+  const company = await Company.findOne(
+    { slug: COMPANY.slug, isDemo: true },
+    { timezone: 1, demoCycleStartedAt: 1 },
+  ).lean();
   if (!company) return { moved: 0, rebuilt: false };
 
-  const clock = demoClock(now);
+  const clock = demoClock(now, company.demoCycleStartedAt);
 
-  // The hour turned: put the day back to the moment the story starts.
-  if (lastCycle !== null && clock.cycleStartedAt.getTime() !== lastCycle) {
-    lastCycle = clock.cycleStartedAt.getTime();
+  // The day has run its course: build a fresh one and start the hour again.
+  if (clock.finished) {
     await seedDemo(now);
     notifyCompany(company._id.toString(), { jobId: "", dates: [], reason: "demo-reset" });
     return { moved: 0, rebuilt: true };
   }
-  lastCycle = clock.cycleStartedAt.getTime();
 
   const today = dateIn(now, company.timezone);
   const { start, end } = dayRange(today, company.timezone);
@@ -94,9 +93,4 @@ export async function tickDemo(now: Date = new Date()): Promise<{ moved: number;
   }
 
   return { moved, rebuilt: false };
-}
-
-/** For tests: forget which cycle was last seen. */
-export function resetSimulator(): void {
-  lastCycle = null;
 }

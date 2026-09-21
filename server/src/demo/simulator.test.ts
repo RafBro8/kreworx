@@ -4,21 +4,23 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { dateIn, zonedTime } from "../lib/dates";
 import { ensureIndexes, Job } from "../models";
-import { DAY_END_MINUTES, STORY_START_MINUTES } from "./clock";
+import { Company } from "../models";
+import { CYCLE_MS, DAY_END_MINUTES, STORY_START_MINUTES } from "./clock";
 import { seedDemo } from "./seedDemo";
-import { resetSimulator, statusAt, tickDemo } from "./simulator";
+import { statusAt, tickDemo } from "./simulator";
 
 const TZ = "America/Chicago";
 
-/**
- * A real instant that puts the demo clock at a given minute of the day.
- * Kept just inside the hour, because the very end of the day is the start of
- * the next cycle rather than a moment within this one.
- */
-function whenClockReads(demoMinutes: number): Date {
-  const throughTheDay = (demoMinutes - STORY_START_MINUTES) / (DAY_END_MINUTES - STORY_START_MINUTES);
-  const hourStart = Math.floor(Date.now() / 3_600_000) * 3_600_000;
-  return new Date(hourStart + Math.min(throughTheDay, 0.999) * 3_600_000);
+/** When the current run of the demo day began. */
+async function cycleStart(): Promise<number> {
+  const company = await Company.findOne({ slug: "northline" }, { demoCycleStartedAt: 1 }).lean();
+  return company!.demoCycleStartedAt!.getTime();
+}
+
+/** A real instant that puts the demo clock at a given minute of the day. */
+async function whenClockReads(demoMinutes: number): Promise<Date> {
+  const through = (demoMinutes - STORY_START_MINUTES) / (DAY_END_MINUTES - STORY_START_MINUTES);
+  return new Date((await cycleStart()) + Math.min(through, 0.999) * CYCLE_MS);
 }
 
 const statusOf = async (number: number) => (await Job.findOne({ number }, { status: 1 }).lean())!.status;
@@ -47,7 +49,6 @@ describe("the demo day", () => {
 
   beforeEach(async () => {
     await seedDemo();
-    resetSimulator();
   });
 
   afterAll(async () => {
@@ -59,32 +60,32 @@ describe("the demo day", () => {
     // Amara's job runs 10:30 to 12:30, and starts the demo en route.
     expect(await statusOf(4471)).toBe("en_route");
 
-    await tickDemo(whenClockReads(10 * 60 + 45));
+    await tickDemo(await whenClockReads(10 * 60 + 45));
     expect(await statusOf(4471)).toBe("on_site");
 
-    await tickDemo(whenClockReads(13 * 60));
+    await tickDemo(await whenClockReads(13 * 60));
     expect(await statusOf(4471)).toBe("done");
   });
 
   it("records each move on the timeline, so the history is real", async () => {
-    await tickDemo(whenClockReads(10 * 60 + 45));
+    await tickDemo(await whenClockReads(10 * 60 + 45));
 
     const job = await Job.findOne({ number: 4471 }).lean();
     expect(job!.timeline.at(-1)).toMatchObject({ status: "on_site" });
   });
 
   it("never moves a job backwards when the clock is behind it", async () => {
-    await tickDemo(whenClockReads(13 * 60));
+    await tickDemo(await whenClockReads(13 * 60));
     expect(await statusOf(4471)).toBe("done");
 
-    await tickDemo(whenClockReads(STORY_START_MINUTES));
+    await tickDemo(await whenClockReads(STORY_START_MINUTES));
     expect(await statusOf(4471)).toBe("done");
   });
 
   it("leaves work that is waiting on parts or a customer where it is", async () => {
     // #4473 is blocked on a compressor that has not arrived.
     expect(await statusOf(4473)).toBe("parts_on_order");
-    await tickDemo(whenClockReads(DAY_END_MINUTES));
+    await tickDemo(await whenClockReads(DAY_END_MINUTES));
     expect(await statusOf(4473)).toBe("parts_on_order");
   });
 
@@ -92,7 +93,7 @@ describe("the demo day", () => {
     const pruitt = await Job.findOne({ number: 4474 }).lean();
     await Job.updateOne({ _id: pruitt!._id }, { $set: { status: "scheduled", manualOverride: true } });
 
-    await tickDemo(whenClockReads(DAY_END_MINUTES));
+    await tickDemo(await whenClockReads(DAY_END_MINUTES));
 
     expect(await statusOf(4474)).toBe("scheduled");
     // Everything else still finished, so this is not the simulator sitting idle.
@@ -103,29 +104,37 @@ describe("the demo day", () => {
     const today = dateIn(new Date(), TZ);
     const tomorrow = await Job.findOne({ scheduledStart: { $gte: zonedTime(today, 24 * 60, TZ) } }).lean();
 
-    await tickDemo(whenClockReads(DAY_END_MINUTES));
+    await tickDemo(await whenClockReads(DAY_END_MINUTES));
 
     expect((await Job.findById(tomorrow!._id).lean())!.status).toBe(tomorrow!.status);
   });
 
-  it("rebuilds the day when the hour turns", async () => {
-    await tickDemo(whenClockReads(12 * 60));
-    await tickDemo(whenClockReads(DAY_END_MINUTES));
+  it("rebuilds the day once the hour it was given has run out", async () => {
+    await tickDemo(await whenClockReads(12 * 60));
+    await tickDemo(await whenClockReads(DAY_END_MINUTES));
     expect(await statusOf(4471)).toBe("done");
 
-    // An instant in the next hour: a new cycle, so the story starts again.
-    const nextCycle = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000 + 3_600_000 + 60_000);
-    const result = await tickDemo(nextCycle);
+    const result = await tickDemo(new Date((await cycleStart()) + CYCLE_MS + 1000));
 
     expect(result.rebuilt).toBe(true);
     expect(await statusOf(4471)).toBe("en_route");
   });
 
+  it("counts the new hour from the rebuild, so a fresh day is not instantly fast-forwarded", async () => {
+    const wasStartedAt = await cycleStart();
+    await tickDemo(new Date(wasStartedAt + CYCLE_MS + 1000));
+
+    expect(await cycleStart()).toBeGreaterThan(wasStartedAt);
+    // A tick moments later leaves the morning alone rather than racing to the end.
+    await tickDemo(new Date((await cycleStart()) + 5000));
+    expect(await statusOf(4471)).toBe("en_route");
+  });
+
   it("reports how many jobs it moved, and moves nothing twice", async () => {
-    const first = await tickDemo(whenClockReads(11 * 60));
+    const first = await tickDemo(await whenClockReads(11 * 60));
     expect(first.moved).toBeGreaterThan(0);
 
-    const again = await tickDemo(whenClockReads(11 * 60));
+    const again = await tickDemo(await whenClockReads(11 * 60));
     expect(again.moved).toBe(0);
   });
 });
