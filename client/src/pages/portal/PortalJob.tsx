@@ -3,7 +3,14 @@ import { useParams } from "react-router";
 
 import { Card, Display } from "../../components/ui";
 import { PhoneIcon } from "../../components/icons";
-import { answerQuote, ApiRequestError, getPortal, type JobStatus, type PortalView } from "../../lib/api";
+import {
+  answerQuote,
+  ApiRequestError,
+  getPortal,
+  portalPhotoUrl,
+  type JobStatus,
+  type PortalView,
+} from "../../lib/api";
 import { clockWithPeriod, initials, minutesOfDay, money, shortDate } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
 import { useDemoMinutes } from "../../lib/useDemoClock";
@@ -74,6 +81,7 @@ export default function PortalJob() {
 
       <StatusCard view={view} demoMinutes={demoMinutes} />
       {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
+      {view.photos.length > 0 ? <PhotosCard photos={view.photos} token={token} /> : null}
       {view.quote ? (
         <QuoteCard
           quote={view.quote}
@@ -180,6 +188,39 @@ function TechnicianCard({ technician, phone }: { technician: NonNullable<PortalV
             <PhoneIcon size={18} />
           </a>
         ) : null}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * What the technician photographed, in the order they took it.
+ *
+ * Only the pictures the crew marked to share ever reach this page - the server
+ * filters them out of the response entirely - so there is nothing here to
+ * decide. Each image is fetched on its own, so the page is readable before any
+ * of them arrive.
+ */
+function PhotosCard({ photos, token }: { photos: PortalView["photos"]; token: string }) {
+  return (
+    <Card className="rounded-2xl p-[18px]">
+      <div className="flex flex-col gap-3">
+        <span className="font-mono text-[10.5px] font-medium tracking-[0.1em] text-ink-faint uppercase">
+          {photos.length === 1 ? "Photo from the visit" : "Photos from the visit"}
+        </span>
+        <ul className="flex flex-col gap-3.5">
+          {photos.map((photo) => (
+            <li key={photo.id} className="flex flex-col gap-1.5">
+              <img
+                src={portalPhotoUrl(token, photo.id)}
+                alt={photo.caption ?? "Photo taken during the visit"}
+                loading="lazy"
+                className="w-full rounded-tile border border-border bg-raised object-cover"
+              />
+              {photo.caption ? <span className="text-[12.5px] text-ink-muted">{photo.caption}</span> : null}
+            </li>
+          ))}
+        </ul>
       </div>
     </Card>
   );

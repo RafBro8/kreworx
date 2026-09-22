@@ -4,9 +4,10 @@ import { z } from "zod";
 import { demoClockPayload } from "../demo/clock";
 import { ApiError } from "../lib/ApiError";
 import { dateIn } from "../lib/dates";
-import { Company, Crew, Customer, Job, Property, Quote, User } from "../models";
+import { Company, Crew, Customer, Job, Photo, Property, Quote, User } from "../models";
 import { lineAmountCents, totalCents } from "../models/lineItems";
 import { notifyCompany, notifyJob } from "../realtime/io";
+import { describe as describePhoto, findPhoto, sendImage } from "./photos.routes";
 
 const router = Router();
 
@@ -42,12 +43,15 @@ router.get("/portal/:token", async (req, res) => {
 
   const job = await jobFromToken(req.params.token);
 
-  const [company, customer, property, crew, quote] = await Promise.all([
+  const [company, customer, property, crew, quote, photos] = await Promise.all([
     Company.findById(job.companyId, { name: 1, phone: 1, timezone: 1, demoCycleStartedAt: 1 }).lean(),
     Customer.findById(job.customerId, { name: 1 }).lean(),
     Property.findById(job.propertyId, { street: 1, city: 1 }).lean(),
     job.crewId ? Crew.findById(job.crewId, { leadId: 1 }).lean() : null,
     Quote.findOne({ jobId: job._id, status: { $in: ["sent", "approved", "declined"] } }).sort({ sentAt: -1 }).lean(),
+    // Only what the crew marked to share, and never the bytes: those come one
+    // at a time from the route below, so the page loads before the pictures do.
+    Photo.find({ jobId: job._id, sharedWithCustomer: { $ne: false } }, { data: 0 }).sort({ createdAt: 1 }).lean(),
   ]);
   if (!company || !customer || !property) throw ApiError.notFound(NO_SUCH_LINK);
 
@@ -66,6 +70,10 @@ router.get("/portal/:token", async (req, res) => {
       timeline: job.timeline.map((entry) => ({ status: entry.status, at: entry.at })),
     },
     address: { street: property.street, city: property.city },
+    photos: photos.map((photo) => {
+      const { sharedWithCustomer: _shared, ...summary } = describePhoto(photo);
+      return summary;
+    }),
     technician: lead
       ? {
           name: lead.name,
@@ -146,6 +154,22 @@ router.post("/portal/:token/quote", async (req, res) => {
   notifyJob(jobId, { status: resumed ? "on_site" : job.status });
 
   res.status(204).end();
+});
+
+/**
+ * One photo from the job the link names.
+ *
+ * The id alone is not enough: the photo has to belong to this job and be one
+ * the crew marked to share, so a guessed id reaches nothing, and an internal
+ * photo stays internal even though the customer holds a valid link.
+ */
+router.get("/portal/:token/photos/:id", async (req, res) => {
+  const job = await jobFromToken(req.params.token);
+  const photo = await findPhoto(req.params.id as string);
+
+  if (!photo.jobId.equals(job._id) || photo.sharedWithCustomer === false) throw ApiError.notFound("Photo not found");
+
+  sendImage(res, photo);
 });
 
 export default router;

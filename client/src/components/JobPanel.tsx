@@ -22,6 +22,7 @@ import {
 } from "../lib/format";
 import { useApi } from "../lib/useApi";
 import { PhoneIcon } from "./icons";
+import JobPhotos from "./JobPhotos";
 import { Eyebrow, StatusPill } from "./ui";
 
 type Props = {
@@ -177,6 +178,10 @@ function JobBody({ job, crews, timezone, boardDate, onChanged }: { job: JobDetai
           </ul>
         </Section>
       ) : null}
+
+      <Section label="Photos">
+        <JobPhotos jobId={job.id} />
+      </Section>
 
       {job.quote || job.invoice ? (
         <Section label="Money">

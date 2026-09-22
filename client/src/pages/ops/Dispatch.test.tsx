@@ -150,10 +150,14 @@ function fakeServer(role: Role) {
     location: { lat: 41.5261, lng: -87.8892 },
   });
 
+  type FakePhoto = { id: string; caption: string | null; contentType: string; bytes: number; takenAt: string; sharedWithCustomer: boolean };
+  const photos = new Map<string, FakePhoto[]>();
+
   const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    // Photo uploads send a Blob rather than JSON.
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ method, url, body });
 
     if (url === "/api/health") return json({ status: "ok", uptimeSeconds: 1, commit: null, demoMode: true, database: { connected: true } });
@@ -169,6 +173,23 @@ function fakeServer(role: Role) {
       const onDay = [...jobs.values()].filter((job) => job.scheduledStart?.startsWith(date) && (role !== "technician" || job.crew?.id === "c-delgado"));
       // 10:20 AM on the demo clock, the moment the designs show.
       return json({ date, timezone: TZ, demo: { minutes: 620, speed: 6.67, endsInSeconds: 3600 }, jobs: onDay.map(summary) });
+    }
+
+    const photoMatch = url.match(/^\/api\/jobs\/([^/]+)\/photos(?:\?(.*))?$/);
+    if (photoMatch) {
+      const onJob = photos.get(photoMatch[1]!) ?? [];
+      if (method === "GET") return json(onJob);
+      const query = new URLSearchParams(photoMatch[2] ?? "");
+      const added: FakePhoto = {
+        id: "p-" + (onJob.length + 1),
+        caption: query.get("caption"),
+        contentType: "image/png",
+        bytes: 42,
+        takenAt: NOW.toISOString(),
+        sharedWithCustomer: query.get("share") !== "false",
+      };
+      photos.set(photoMatch[1]!, [...onJob, added]);
+      return json(added, 201);
     }
 
     const match = url.match(/^\/api\/jobs\/([^/]+)(?:\/(schedule|status|unschedule))?$/);
@@ -508,5 +529,45 @@ describe("the dispatch board", () => {
 
     await user.click(screen.getByRole("button", { name: "Back to today" }));
     expect(await screen.findByRole("heading", { name: /^Today/ })).toBeInTheDocument();
+  });
+
+  describe("photos on a job", () => {
+    it("shrinks and uploads the chosen file, with its caption, and shows it on the job", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      const user = userEvent.setup();
+      renderBoard();
+      await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+
+      const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
+      await user.type(within(panel).getByLabelText("Photo caption"), "Cracked ignitor");
+      await user.upload(
+        within(panel).getByLabelText("Choose a photo"),
+        new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "ignitor.png", { type: "image/png" }),
+      );
+
+      await waitFor(() =>
+        expect(server.calls.some((call) => call.method === "POST" && call.url === "/api/jobs/j-4471/photos?caption=Cracked+ignitor")).toBe(true),
+      );
+      expect(await within(panel).findByAltText("Cracked ignitor")).toHaveAttribute("src", "/api/photos/p-1");
+    });
+
+    it("marks a photo office-only when the customer is not to see it", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      const user = userEvent.setup();
+      renderBoard();
+      await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+
+      const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
+      await user.click(within(panel).getByLabelText("Show the customer"));
+      await user.upload(
+        within(panel).getByLabelText("Choose a photo"),
+        new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "meter.png", { type: "image/png" }),
+      );
+
+      await waitFor(() => expect(server.calls.some((call) => call.url?.includes("share=false"))).toBe(true));
+      expect(await within(panel).findByText("Office")).toBeInTheDocument();
+    });
   });
 });

@@ -4,13 +4,14 @@ import { Crew } from "./Crew";
 import { Customer } from "./Customer";
 import { Invoice } from "./Invoice";
 import { Job } from "./Job";
+import { Photo } from "./Photo";
 import { Property } from "./Property";
 import { Quote } from "./Quote";
 import { User } from "./User";
 
-export { Company, Counter, Crew, Customer, Invoice, Job, Property, Quote, User };
+export { Company, Counter, Crew, Customer, Invoice, Job, Photo, Property, Quote, User };
 
-const models = [Company, User, Crew, Customer, Property, Job, Quote, Invoice, Counter];
+const models = [Company, User, Crew, Customer, Property, Job, Quote, Invoice, Counter, Photo];
 
 /**
  * autoIndex is off, so indexes are built here at startup and awaited. A

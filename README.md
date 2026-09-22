@@ -13,8 +13,8 @@ work with one tap.
 > **Status: in build.** Stages 1-3 are done and stage 4 has started: both
 > deploys are live, the app runs on a seeded demo business with real sign-in and
 > roles, the board and the live map are working, and a customer can now approve
-> their quote from the link. Screens still to come say on the page what they
-> will hold.
+> their quote and see the photos of the work from the link. Screens still to
+> come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -47,6 +47,10 @@ and cooling contractor in Mokena, Illinois: the owner, the dispatcher, a
 technician, or a customer holding the link to her job. There is no sign-up, and
 the account menu switches seats at any time.
 
+The photographs are drawn rather than checked in: a few hundred lines of pixel
+maths and a PNG encoder, so the repository carries no binaries and every
+rebuild produces the same pictures.
+
 The business is generated from a script in [`server/src/demo`](server/src/demo)
 that matches the design artboards: four crews, eleven jobs today with four done
 by mid-morning, $4,180 invoiced, and Amara Osei waiting on a $379 quote. The
@@ -76,6 +80,15 @@ in Chicago.
   quote that is, so no request body can reach anybody else's money, and the
   write is guarded on the quote still being unanswered, which is what makes a
   double tap land as one answer.
+- **Photos live in MongoDB.** A visit's photos are small, few, and always read
+  alongside the job they belong to, so they sit in the same database as
+  everything else: one backup, one connection string, no third-party account.
+  The browser shrinks each one to 1600px before it is sent, so the server needs
+  no image library and a van on a weak signal is not uploading five megabytes.
+  The server checks the file's own signature rather than trusting the content
+  type it was given, caps the size and the count, and marks each photo as the
+  customer's or the office's - the portal query filters on that, so a picture of
+  the meter cupboard cannot reach the person holding the link.
 - **Money** is whole cents, totalled by one function everywhere it is summed.
 - **No double-booking.** Moving a job checks the van's day and saves inside one
   transaction that also writes to the van, so two dispatchers grabbing the same

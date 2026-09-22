@@ -4,8 +4,9 @@ import type { Types } from "mongoose";
 
 import { env } from "../config/env";
 import { dateIn } from "../lib/dates";
-import { Company, Counter, Crew, Customer, Invoice, Job, Property, Quote, User } from "../models";
+import { Company, Counter, Crew, Customer, Invoice, Job, Photo, Property, Quote, User } from "../models";
 import { buildDemo } from "./buildDemo";
+import { demoPhotos } from "./photos";
 import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
 
 /**
@@ -13,7 +14,7 @@ import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
  * jobs). A running demo built by an older version is rebuilt on the next
  * start rather than waiting for the date to change.
  */
-export const DEMO_SEED_VERSION = 2;
+export const DEMO_SEED_VERSION = 3;
 
 /**
  * Writes the Northline demo into the database.
@@ -65,15 +66,39 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
     Job.deleteMany(scoped),
     Quote.deleteMany(scoped),
     Invoice.deleteMany(scoped),
+    Photo.deleteMany(scoped),
   ]);
 
   await Customer.insertMany(plan.customers.map(({ key: _key, ...customer }) => ({ ...customer, companyId })));
   await Property.insertMany(plan.properties.map((property) => ({ ...property, companyId })));
-  await Job.insertMany(
+  const savedJobs = await Job.insertMany(
     plan.jobs.map(({ crew, ...job }) => ({ ...job, companyId, crewId: crew ? crewIds.get(crew) : null })),
   );
   await Quote.insertMany(plan.quotes.map((quote) => ({ ...quote, companyId })));
   await Invoice.insertMany(plan.invoices.map((invoice) => ({ ...invoice, companyId })));
+
+  // Photographs of the work, drawn rather than checked in. They hang off job
+  // numbers, so a job the script no longer has simply gets none.
+  const jobsByNumber = new Map(savedJobs.map((job) => [job.number, job]));
+  const leadOf = new Map(plan.jobs.map((job) => [job.number, job.crew ? CREWS.find((crew) => crew.key === job.crew)?.lead : undefined]));
+  await Photo.insertMany(
+    demoPhotos().flatMap((photo) => {
+      const job = jobsByNumber.get(photo.jobNumber);
+      if (!job) return [];
+      return [
+        {
+          companyId,
+          jobId: job._id,
+          data: photo.bytes,
+          contentType: "image/png",
+          bytes: photo.bytes.length,
+          caption: photo.caption,
+          sharedWithCustomer: photo.sharedWithCustomer,
+          takenById: userIds.get(leadOf.get(photo.jobNumber) ?? "") ?? null,
+        },
+      ];
+    }),
+  );
 
   // New jobs created through the app pick up numbering after the seeded ones.
   const highest = Math.max(...plan.jobs.map((job) => job.number));

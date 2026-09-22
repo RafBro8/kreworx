@@ -109,6 +109,22 @@ export type OwnerSummary = {
   invoicedThisWeekCents: number;
 };
 
+/** A photo, without the photo: enough to show a caption and fetch the bytes. */
+export type PhotoSummary = {
+  id: string;
+  caption: string | null;
+  contentType: string;
+  bytes: number;
+  takenAt: string;
+};
+
+export type JobPhoto = PhotoSummary & { sharedWithCustomer: boolean };
+
+/** Where an <img> points for a photo on a staff screen, and on the portal. */
+export const photoUrl = (id: string) => `/api/photos/${id}`;
+export const portalPhotoUrl = (token: string, id: string) =>
+  `/api/portal/${encodeURIComponent(token)}/photos/${id}`;
+
 export type PortalView = {
   company: { name: string; phone: string | null; timezone: string };
   demo: DemoClockPayload;
@@ -122,6 +138,7 @@ export type PortalView = {
     timeline: { status: JobStatus; at: string }[];
   };
   address: { street: string; city: string };
+  photos: PhotoSummary[];
   technician: { name: string; title: string | null; years: number | null } | null;
   quote: {
     number: number;
@@ -185,6 +202,26 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
+export const getJobPhotos = (jobId: string) => api<JobPhoto[]>(`/jobs/${jobId}/photos`);
+export const deletePhoto = (id: string) => api<void>(`/photos/${id}`, { method: "DELETE" });
+
+/**
+ * The image is the whole body. A multipart form would carry one file and a
+ * boundary; this carries one file, and the caption travels in the query.
+ */
+export const uploadJobPhoto = (jobId: string, blob: Blob, options: { caption?: string; share: boolean }) => {
+  const query = new URLSearchParams();
+  if (options.caption) query.set("caption", options.caption);
+  if (!options.share) query.set("share", "false");
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+
+  return api<JobPhoto>(`/jobs/${jobId}/photos${suffix}`, {
+    method: "POST",
+    body: blob,
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+  });
+};
+
 export const answerQuote = (token: string, decision: "approved" | "declined") =>
   api<void>(`/portal/${encodeURIComponent(token)}/quote`, { method: "POST", body: JSON.stringify({ decision }) });
 export const getJob = (id: string) => api<JobDetail>(`/jobs/${id}`);

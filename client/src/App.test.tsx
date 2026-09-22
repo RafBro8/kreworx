@@ -53,6 +53,7 @@ const portal: PortalView = {
   customer: { firstName: "Amara" },
   job: { number: 4471, title: "No heat - priority", status: "en_route", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", timeline: [] },
   address: { street: "45 Linden Ave", city: "Mokena" },
+  photos: [],
   technician: { name: "Tomas Delgado", title: "Lead technician", years: 9 },
   quote: {
     number: 4471,
@@ -313,6 +314,35 @@ describe("Kreworx", () => {
     it("says the link has expired rather than showing an error code", async () => {
       renderAt("/portal/not-a-real-token-000");
       expect(await screen.findByText("This link has expired")).toBeInTheDocument();
+    });
+
+    it("shows the photos the crew shared, each fetched through her own link", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({
+                ...portal,
+                photos: [
+                  { id: "p-1", caption: "Cracked hot-surface ignitor", contentType: "image/png", bytes: 4200, takenAt: "2026-09-16T15:02:00Z" },
+                  { id: "p-2", caption: null, contentType: "image/png", bytes: 3100, takenAt: "2026-09-16T15:04:00Z" },
+                ],
+              })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      const first = await screen.findByAltText("Cracked hot-surface ignitor");
+      expect(first).toHaveAttribute("src", "/api/portal/osei-token-123456789/photos/p-1");
+      // A photo with no caption still needs something for a screen reader.
+      expect(screen.getByAltText("Photo taken during the visit")).toBeInTheDocument();
+    });
+
+    it("leaves the photo card out entirely when there are none", async () => {
+      renderAt("/portal/osei-token-123456789");
+      expect(await screen.findByText("Tomas Delgado")).toBeInTheDocument();
+      expect(screen.queryByText(/Photos? from the visit/)).toBeNull();
     });
 
     it("lets her approve the quote from the link, and shows the answer standing", async () => {
