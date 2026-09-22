@@ -198,7 +198,7 @@ function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalVi
                 {item.waived ? `${item.description} waived` : item.description}
               </span>
               <span className={`font-mono text-[13px] ${item.waived ? "text-done" : ""}`}>
-                {item.waived ? `−${money(item.unitPriceCents * item.quantity)}` : money(item.amountCents)}
+                {item.waived ? `-${money(item.unitPriceCents * item.quantity)}` : money(item.amountCents)}
               </span>
             </li>
           ))}

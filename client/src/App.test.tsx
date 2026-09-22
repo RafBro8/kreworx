@@ -305,7 +305,7 @@ describe("Kreworx", () => {
       expect(screen.queryByRole("navigation", { name: "Sections" })).toBeNull();
       expect(screen.getByText("Tomas Delgado")).toBeInTheDocument();
       expect(screen.getByText("Diagnostic visit waived")).toBeInTheDocument();
-      expect(screen.getByText("−$89.00")).toBeInTheDocument();
+      expect(screen.getByText("-$89.00")).toBeInTheDocument();
       expect(screen.getByText("$379.00")).toBeInTheDocument();
     });
 
