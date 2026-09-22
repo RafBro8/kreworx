@@ -128,6 +128,7 @@ export type PortalView = {
     status: "sent" | "approved" | "declined";
     findings: string | null;
     sentAt: string | null;
+    respondedAt: string | null;
     validUntil: string | null;
     lineItems: {
       description: string;
@@ -184,6 +185,8 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
+export const answerQuote = (token: string, decision: "approved" | "declined") =>
+  api<void>(`/portal/${encodeURIComponent(token)}/quote`, { method: "POST", body: JSON.stringify({ decision }) });
 export const getJob = (id: string) => api<JobDetail>(`/jobs/${id}`);
 export const scheduleJob = (id: string, body: { crewId: string; start: string; end: string }) =>
   api<void>(`/jobs/${id}/schedule`, { method: "PATCH", body: JSON.stringify(body) });

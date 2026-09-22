@@ -1,12 +1,12 @@
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "../app";
 import { SESSION_COOKIE, signSession } from "../auth/session";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
-import { Company, Customer, ensureIndexes, Job, Property, User } from "../models";
+import { Company, Customer, ensureIndexes, Job, Property, Quote, User } from "../models";
 
 const app = createApp();
 
@@ -219,6 +219,94 @@ describe("the Kreworx API", () => {
 
       expect(after).toBe(before);
       await seedDemo();
+    });
+  });
+
+  describe("answering a quote from the link", () => {
+    const token = async () => ((await request(app).get("/api/auth/demo-accounts")).body as DemoAccounts).customer.portalToken;
+
+    beforeEach(async () => {
+      await seedDemo();
+    });
+
+    it("lets Amara approve her quote, and says so when she opens the link again", async () => {
+      const link = await token();
+
+      const answer = await request(app).post(`/api/portal/${link}/quote`).send({ decision: "approved" });
+      expect(answer.status).toBe(204);
+
+      const after = await request(app).get(`/api/portal/${link}`);
+      expect(after.body.quote).toMatchObject({ status: "approved" });
+      expect(after.body.quote.respondedAt).not.toBeNull();
+    });
+
+    it("records a decline the same way", async () => {
+      const link = await token();
+      expect((await request(app).post(`/api/portal/${link}/quote`).send({ decision: "declined" })).status).toBe(204);
+      expect((await request(app).get(`/api/portal/${link}`)).body.quote.status).toBe("declined");
+    });
+
+    it("takes one answer, however many times the button is tapped", async () => {
+      const link = await token();
+      const [first, second] = await Promise.all([
+        request(app).post(`/api/portal/${link}/quote`).send({ decision: "approved" }),
+        request(app).post(`/api/portal/${link}/quote`).send({ decision: "declined" }),
+      ]);
+
+      // Whichever lands first wins; the other is told, rather than silently
+      // overwriting an answer the customer already gave.
+      expect([first.status, second.status].sort()).toEqual([204, 409]);
+      expect((await request(app).get(`/api/portal/${link}`)).body.quote.status).toBe(
+        first.status === 204 ? "approved" : "declined",
+      );
+    });
+
+    it("starts the work again when the job was held waiting on her", async () => {
+      const company = (await Company.findOne({ slug: "northline" }).lean())!;
+      const held = (await Job.findOne({ companyId: company._id, number: 4471 }).lean())!;
+      await Job.updateOne({ _id: held._id }, { $set: { status: "awaiting_approval" } });
+
+      const answer = await request(app).post(`/api/portal/${held.portalToken}/quote`).send({ decision: "approved" });
+
+      expect(answer.status).toBe(204);
+      const moved = await request(app).get(`/api/portal/${held.portalToken}`);
+      expect(moved.body.job.status).toBe("on_site");
+      expect(moved.body.job.timeline.at(-1)).toMatchObject({ status: "on_site" });
+    });
+
+    it("refuses an answer to a quote nobody sent", async () => {
+      const company = (await Company.findOne({ slug: "northline" }).lean())!;
+      const quiet = (await Job.findOne({ companyId: company._id, number: 4472 }).lean())!;
+
+      const answer = await request(app).post(`/api/portal/${quiet.portalToken}/quote`).send({ decision: "approved" });
+      expect(answer.status).toBe(404);
+    });
+
+    it("refuses anything that is not a yes or a no", async () => {
+      const link = await token();
+      expect((await request(app).post(`/api/portal/${link}/quote`).send({ decision: "maybe" })).status).toBe(400);
+      expect((await request(app).post(`/api/portal/${link}/quote`).send({})).status).toBe(400);
+    });
+
+    it("cannot be answered with somebody else's link, or none", async () => {
+      const wrong = await request(app).post("/api/portal/abcdefghijklmnopqrstuvwxyz012345/quote").send({ decision: "approved" });
+      expect(wrong.status).toBe(404);
+      expect(wrong.body.error).toBe((await request(app).get("/api/portal/abc")).body.error);
+    });
+
+    it("never lets an answer reach a quote the link does not own", async () => {
+      const company = (await Company.findOne({ slug: "northline" }).lean())!;
+      const hers = (await Quote.findOne({ companyId: company._id, status: "sent" }).lean())!;
+      const someoneElse = (await Job.findOne({ companyId: company._id, number: 4472 }).lean())!;
+
+      // The body is ignored entirely: the quote comes from the job the token
+      // names, so naming another quote changes nothing.
+      const answer = await request(app)
+        .post(`/api/portal/${someoneElse.portalToken}/quote`)
+        .send({ decision: "approved", quoteId: hers._id.toString() });
+
+      expect(answer.status).toBe(400);
+      expect((await Quote.findById(hers._id).lean())!.status).toBe("sent");
     });
   });
 });

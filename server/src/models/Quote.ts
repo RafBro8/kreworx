@@ -14,6 +14,9 @@ const quoteSchema = new Schema(
     lineItems: { type: [lineItemSchema], required: true },
     sentAt: { type: Date, default: null },
     respondedAt: { type: Date, default: null },
+    // How the answer arrived. The office can always take a yes over the phone,
+    // so the board should not claim someone tapped a button when they did not.
+    respondedVia: { type: String, enum: ["portal", "office"], default: null },
     validUntil: { type: Date, default: null },
   },
   { timestamps: true },

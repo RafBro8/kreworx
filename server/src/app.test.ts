@@ -26,6 +26,18 @@ describe("the API shell", () => {
     expect(response.body.database).toMatchObject({ connected: true, name: "kreworx_test" });
   });
 
+  it("reports ready, with a status code a monitor can read on its own", async () => {
+    const response = await request(createApp()).get("/api/health/ready");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+    // The whole point of the separate endpoint: down has to mean a non-2xx,
+    // so an ordinary HTTP check catches it without keyword matching. /health
+    // answers 200 either way because Render reads it to decide whether a
+    // deploy came up.
+    expect(response.headers["cache-control"]).toContain("no-store");
+  });
+
   it("answers at the root so the deploy URL is not a dead end", async () => {
     const response = await request(createApp()).get("/");
 
