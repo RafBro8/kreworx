@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { useParams } from "react-router";
 
 import { Card, Display } from "../../components/ui";
 import { PhoneIcon } from "../../components/icons";
-import { getPortal, type JobStatus, type PortalView } from "../../lib/api";
+import { answerQuote, ApiRequestError, getPortal, type JobStatus, type PortalView } from "../../lib/api";
 import { clockWithPeriod, initials, minutesOfDay, money, shortDate } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
 import { useDemoMinutes } from "../../lib/useDemoClock";
@@ -73,7 +74,15 @@ export default function PortalJob() {
 
       <StatusCard view={view} demoMinutes={demoMinutes} />
       {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
-      {view.quote ? <QuoteCard quote={view.quote} timezone={view.company.timezone} firstName={view.technician?.name.split(" ")[0]} /> : null}
+      {view.quote ? (
+        <QuoteCard
+          quote={view.quote}
+          timezone={view.company.timezone}
+          firstName={view.technician?.name.split(" ")[0]}
+          token={token}
+          onAnswered={reload}
+        />
+      ) : null}
     </>
   );
 }
@@ -176,8 +185,40 @@ function TechnicianCard({ technician, phone }: { technician: NonNullable<PortalV
   );
 }
 
-function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalView["quote"]>; timezone: string; firstName?: string }) {
+function QuoteCard({
+  quote,
+  timezone,
+  firstName,
+  token,
+  onAnswered,
+}: {
+  quote: NonNullable<PortalView["quote"]>;
+  timezone: string;
+  firstName?: string;
+  token: string;
+  onAnswered: () => void;
+}) {
   const waiting = quote.status === "sent";
+  const [sending, setSending] = useState<"approved" | "declined" | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  async function answer(decision: "approved" | "declined") {
+    setSending(decision);
+    setFailed(null);
+    try {
+      await answerQuote(token, decision);
+    } catch (error) {
+      // A 409 means the answer is already recorded - hers, or the office
+      // taking it by phone. Reloading shows her what actually stands, which
+      // is more use than an error she cannot act on.
+      const conflict = error instanceof ApiRequestError && error.status === 409;
+      if (!conflict) setFailed(error instanceof Error ? error.message : "That did not go through");
+    } finally {
+      setSending(null);
+      // Either way, the truth is on the server.
+      onAnswered();
+    }
+  }
 
   return (
     <Card className="rounded-2xl p-[18px]">
@@ -186,7 +227,11 @@ function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalVi
           <span className={`font-mono text-[10.5px] font-medium tracking-[0.1em] uppercase ${waiting ? "text-waiting" : "text-done"}`}>
             {waiting ? "Needs your approval" : quote.status === "approved" ? "Approved" : "Declined"}
           </span>
-          {quote.sentAt ? <span className="font-mono text-[10.5px] text-ink-faint">Sent {clockWithPeriod(quote.sentAt, timezone)}</span> : null}
+          {quote.respondedAt && !waiting ? (
+            <span className="font-mono text-[10.5px] text-ink-faint">{clockWithPeriod(quote.respondedAt, timezone)}</span>
+          ) : quote.sentAt ? (
+            <span className="font-mono text-[10.5px] text-ink-faint">Sent {clockWithPeriod(quote.sentAt, timezone)}</span>
+          ) : null}
         </div>
 
         {quote.findings ? <p className="text-[13px] leading-relaxed text-ink-muted">{quote.findings}</p> : null}
@@ -211,9 +256,34 @@ function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalVi
         </div>
 
         {waiting ? (
-          <p className="rounded-tile bg-raised px-3 py-2.5 text-center text-[12px] text-ink-muted">
-            Approving online arrives in the next release{firstName ? ` - for now, ${firstName} can take your go-ahead by phone` : ""}.
-          </p>
+          <div className="flex flex-col gap-2.5">
+            {failed ? (
+              <p role="alert" className="rounded-tile bg-blocked-bg px-3 py-2.5 text-center text-[12px] text-blocked">
+                {failed}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => answer("approved")}
+              disabled={sending !== null}
+              aria-busy={sending === "approved"}
+              className="min-h-12 rounded-tile bg-accent px-4 text-[15px] font-medium text-accent-ink disabled:opacity-60"
+            >
+              {sending === "approved" ? "Sending…" : `Approve ${money(quote.totalCents)}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => answer("declined")}
+              disabled={sending !== null}
+              aria-busy={sending === "declined"}
+              className="min-h-11 rounded-tile px-4 text-[13.5px] text-ink-muted disabled:opacity-60"
+            >
+              {sending === "declined" ? "Sending…" : "Not right now"}
+            </button>
+            <p className="text-center text-[11.5px] text-ink-faint">
+              {firstName ? `${firstName} is notified the moment you tap.` : "Your technician is notified the moment you tap."}
+            </p>
+          </div>
         ) : null}
       </div>
     </Card>

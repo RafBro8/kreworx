@@ -59,6 +59,7 @@ const portal: PortalView = {
     status: "sent",
     findings: "The hot-surface ignitor has a hairline crack.",
     sentAt: "2026-09-16T14:58:00Z",
+    respondedAt: null,
     validUntil: null,
     lineItems: [
       { description: "Hot-surface ignitor", detail: null, quantity: 1, unitPriceCents: 21400, waived: false, amountCents: 21400 },
@@ -312,6 +313,66 @@ describe("Kreworx", () => {
     it("says the link has expired rather than showing an error code", async () => {
       renderAt("/portal/not-a-real-token-000");
       expect(await screen.findByText("This link has expired")).toBeInTheDocument();
+    });
+
+    it("lets her approve the quote from the link, and shows the answer standing", async () => {
+      const user = userEvent.setup();
+      const sent: { decision: string }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input).endsWith("/quote")) {
+            sent.push(JSON.parse(String(init?.body)) as { decision: string });
+            return json(null, 204);
+          }
+          return String(input).startsWith("/api/portal/")
+            ? json(sent.length ? { ...portal, quote: { ...portal.quote!, status: "approved", respondedAt: "2026-09-16T15:07:00Z" } } : portal)
+            : json({ error: "Sign in to continue" }, 401);
+        }),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      await user.click(await screen.findByRole("button", { name: "Approve $379.00" }));
+
+      expect(sent).toEqual([{ decision: "approved" }]);
+      expect(await screen.findByText("Approved")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+    });
+
+    it("sends a decline as a decline, not as an approval", async () => {
+      const user = userEvent.setup();
+      const sent: { decision: string }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input).endsWith("/quote")) {
+            sent.push(JSON.parse(String(init?.body)) as { decision: string });
+            return json(null, 204);
+          }
+          return String(input).startsWith("/api/portal/") ? json(portal) : json({ error: "Sign in to continue" }, 401);
+        }),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      await user.click(await screen.findByRole("button", { name: "Not right now" }));
+
+      expect(sent).toEqual([{ decision: "declined" }]);
+    });
+
+    it("offers nothing to tap once the quote has been answered", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({ ...portal, quote: { ...portal.quote!, status: "approved", respondedAt: "2026-09-16T15:07:00Z" } })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("Approved")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Not right now" })).toBeNull();
     });
   });
 

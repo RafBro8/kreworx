@@ -10,10 +10,11 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1-2 are done and stage 3 is under way: both
+> **Status: in build.** Stages 1-3 are done and stage 4 has started: both
 > deploys are live, the app runs on a seeded demo business with real sign-in and
-> roles, and the board is working - jobs can be opened, dragged between vans and
-> moved along. Screens still to come say on the page what they will hold.
+> roles, the board and the live map are working, and a customer can now approve
+> their quote from the link. Screens still to come say on the page what they
+> will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -71,6 +72,10 @@ in Chicago.
   and survives Safari blocking third-party cookies.
 - **Customers have no accounts.** Each job has a long random link, and the portal
   response is built from an allow-list so nothing internal can leak through it.
+  The one thing they can change is their own quote: the link identifies which
+  quote that is, so no request body can reach anybody else's money, and the
+  write is guarded on the quote still being unanswered, which is what makes a
+  double tap land as one answer.
 - **Money** is whole cents, totalled by one function everywhere it is summed.
 - **No double-booking.** Moving a job checks the van's day and saves inside one
   transaction that also writes to the van, so two dispatchers grabbing the same
