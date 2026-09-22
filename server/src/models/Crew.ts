@@ -1,6 +1,6 @@
 import { model, Schema, type InferSchemaType } from "mongoose";
 
-/** A van and the people in it — one lane on the dispatch board. */
+/** A van and the people in it - one lane on the dispatch board. */
 const crewSchema = new Schema(
   {
     companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },

@@ -6,8 +6,8 @@ import { env } from "../config/env";
  * A short-lived pass for opening a socket.
  *
  * The browser reaches the API through the client's own domain, so the session
- * cookie is first-party there. The socket cannot go the same way — that route
- * does not carry WebSockets — so it connects to the API host directly, where
+ * cookie is first-party there. The socket cannot go the same way - that route
+ * does not carry WebSockets - so it connects to the API host directly, where
  * the cookie would be third-party and blocked. Instead the page asks for one
  * of these with its cookie and hands it over on connect.
  *

@@ -112,7 +112,7 @@ export async function scheduleJob(
       const job = await Job.findOne({ _id: jobId, companyId: auth.companyId }).session(session);
       if (!job) throw ApiError.notFound("Job not found");
       if (!canReschedule(auth.role, job.status)) {
-        throw ApiError.conflict(`This job is ${job.status.replace("_", " ")} — change its status before moving it`);
+        throw ApiError.conflict(`This job is ${job.status.replace("_", " ")} - change its status before moving it`);
       }
 
       // Taking a write on the crew is what makes concurrent bookings for it conflict.

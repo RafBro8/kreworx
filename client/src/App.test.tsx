@@ -43,14 +43,14 @@ const job = (overrides: Partial<JobSummary>): JobSummary => ({
 
 const todaysJobs: JobSummary[] = [
   job({ number: 4466, title: "AC not cooling", status: "done", crewId: "c-ramirez", scheduledStart: "2026-09-16T12:00:00Z", scheduledEnd: "2026-09-16T14:00:00Z", customer: { name: "Greg Whitaker", kind: "residential" }, address: { street: "118 Oak St", city: "Mokena" } }),
-  job({ number: 4471, title: "No heat — priority", status: "en_route", priority: "high", crewId: "c-delgado", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", customer: { name: "Amara Osei", kind: "residential" }, address: { street: "45 Linden Ave", city: "Mokena" } }),
+  job({ number: 4471, title: "No heat - priority", status: "en_route", priority: "high", crewId: "c-delgado", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", customer: { name: "Amara Osei", kind: "residential" }, address: { street: "45 Linden Ave", city: "Mokena" } }),
 ];
 
 const portal: PortalView = {
   company: { name: "Northline Mechanical", phone: "(708) 555-0142", timezone: TZ },
   demo: null,
   customer: { firstName: "Amara" },
-  job: { number: 4471, title: "No heat — priority", status: "en_route", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", timeline: [] },
+  job: { number: 4471, title: "No heat - priority", status: "en_route", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", timeline: [] },
   address: { street: "45 Linden Ave", city: "Mokena" },
   technician: { name: "Tomas Delgado", title: "Lead technician", years: 9 },
   quote: {
@@ -61,7 +61,7 @@ const portal: PortalView = {
     validUntil: null,
     lineItems: [
       { description: "Hot-surface ignitor", detail: null, quantity: 1, unitPriceCents: 21400, waived: false, amountCents: 21400 },
-      { description: "Labour — replacement and test", detail: null, quantity: 1.5, unitPriceCents: 11000, waived: false, amountCents: 16500 },
+      { description: "Labour - replacement and test", detail: null, quantity: 1.5, unitPriceCents: 11000, waived: false, amountCents: 16500 },
       { description: "Diagnostic visit", detail: null, quantity: 1, unitPriceCents: 8900, waived: true, amountCents: 0 },
     ],
     totalCents: 37900,
@@ -99,7 +99,7 @@ function fakeApi({ signedInAs = null as string | null, apiDown = false } = {}) {
     const method = init?.method ?? "GET";
 
     if (url === "/api/health") return json({ status: "ok", uptimeSeconds: 1, commit: null, demoMode: true, database: { connected: true, name: "kreworx" } });
-    if (url === "/api/auth/demo-accounts") return json({ company: { name: "Northline Mechanical" }, staff, customer: { name: "Amara Osei", jobTitle: "No heat — priority", portalToken: "osei-token-123456789" } });
+    if (url === "/api/auth/demo-accounts") return json({ company: { name: "Northline Mechanical" }, staff, customer: { name: "Amara Osei", jobTitle: "No heat - priority", portalToken: "osei-token-123456789" } });
     if (url === "/api/auth/demo" && method === "POST") {
       session = JSON.parse(String(init?.body)).userId;
       return json(null, 204);
@@ -184,13 +184,13 @@ describe("Kreworx", () => {
       renderAt("/dispatch");
 
       const delgado = await screen.findByRole("list", { name: "Delgado's jobs" });
-      expect(within(delgado).getByText("No heat — priority")).toBeInTheDocument();
+      expect(within(delgado).getByText("No heat - priority")).toBeInTheDocument();
       expect(within(delgado).getByText("Osei · 45 Linden Ave")).toBeInTheDocument();
       // 15:30 UTC is 10:30 in Chicago in September, whatever zone the test runs in.
-      expect(within(delgado).getByText("10:30–12:30 · En route")).toBeInTheDocument();
+      expect(within(delgado).getByText("10:30-12:30 · En route")).toBeInTheDocument();
 
       const ramirez = screen.getByRole("list", { name: "Ramirez's jobs" });
-      expect(within(ramirez).getByText("7:00–9:00 · Done")).toBeInTheDocument();
+      expect(within(ramirez).getByText("7:00-9:00 · Done")).toBeInTheDocument();
     });
 
     it("counts progress and lists unscheduled work", async () => {

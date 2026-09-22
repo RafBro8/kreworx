@@ -18,8 +18,8 @@ export const DEMO_SEED_VERSION = 2;
 /**
  * Writes the Northline demo into the database.
  *
- * Staff and crews are updated in place, so their ids — and therefore anyone's
- * signed-in session — survive a refresh. Everything operational (customers,
+ * Staff and crews are updated in place, so their ids - and therefore anyone's
+ * signed-in session - survive a refresh. Everything operational (customers,
  * jobs, quotes, invoices) is replaced wholesale. Portal links are carried over
  * by job number, so a customer link someone saved yesterday still opens.
  *

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Kreworx has two themes, and they are not a user preference — they are a
+ * Kreworx has two themes, and they are not a user preference - they are a
  * property of the surface. Dispatch, the crew app and admin are always the
  * ops theme (dark, for people staring at it all shift). The customer portal,
  * quotes and invoices are always the customer theme (light, for a phone in a
@@ -9,7 +9,7 @@
  *
  * So the palette is scoped to [data-theme="ops"] / [data-theme="customer"] on
  * a layout element rather than the document root, which lets one page embed
- * the other — a preview of the customer's view inside the ops app — without
+ * the other - a preview of the customer's view inside the ops app - without
  * the two fighting over a global class.
  *
  * The raw values live in the --surface-* / --ink-* custom properties below;
@@ -18,7 +18,7 @@
  */
 
 @theme {
-  /* Bricolage Grotesque carries headlines and headline numbers — the voice.
+  /* Bricolage Grotesque carries headlines and headline numbers - the voice.
      Plex Sans does the reading. Plex Mono keeps times, money and ids in a
      column that lines up. */
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
@@ -26,7 +26,7 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Spacing runs 4 · 8 · 12 · 16 · 24, which Tailwind's default scale already
-     lands on. The radii are ours: cards 12–16px, controls 10px, pills round. */
+     lands on. The radii are ours: cards 12-16px, controls 10px, pills round. */
   --radius-card: 14px;
   --radius-tile: 11px;
   --radius-control: 10px;

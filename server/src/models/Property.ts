@@ -12,8 +12,8 @@ const equipmentSchema = new Schema(
 
 /**
  * Where the work happens. Split from the customer because one customer can
- * own several addresses, and the history that matters — what is installed,
- * what was fixed — belongs to the building, not the person.
+ * own several addresses, and the history that matters - what is installed,
+ * what was fixed - belongs to the building, not the person.
  */
 const propertySchema = new Schema(
   {

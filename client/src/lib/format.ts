@@ -27,20 +27,20 @@ export function minutesOfDay(iso: string, timeZone: string): number {
   return hour * 60 + minute;
 }
 
-/** "10:30", "1:00" — the compact clock the board uses. */
+/** "10:30", "1:00" - the compact clock the board uses. */
 export function clock(iso: string, timeZone: string): string {
   const { hour, minute } = clockParts(iso, timeZone);
   const twelve = hour % 12 === 0 ? 12 : hour % 12;
   return `${twelve}:${String(minute).padStart(2, "0")}`;
 }
 
-/** "10:30 AM" — for sentences a customer reads. */
+/** "10:30 AM" - for sentences a customer reads. */
 export function clockWithPeriod(iso: string, timeZone: string): string {
   return `${clock(iso, timeZone)} ${clockParts(iso, timeZone).hour < 12 ? "AM" : "PM"}`;
 }
 
 export function timeRange(startIso: string, endIso: string, timeZone: string): string {
-  return `${clock(startIso, timeZone)}–${clock(endIso, timeZone)}`;
+  return `${clock(startIso, timeZone)}-${clock(endIso, timeZone)}`;
 }
 
 /** "Wed 16 Sep" in the business's zone. */
@@ -53,12 +53,12 @@ export function shortDate(when: Date | string, timeZone: string): string {
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const wholeDollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-/** "$379.00" — exact, for documents. */
+/** "$379.00" - exact, for documents. */
 export function money(cents: number): string {
   return dollars.format(cents / 100);
 }
 
-/** "$4,180" — for headline numbers where the cents are noise. */
+/** "$4,180" - for headline numbers where the cents are noise. */
 export function moneyRounded(cents: number): string {
   return wholeDollars.format(Math.round(cents / 100));
 }
@@ -99,7 +99,7 @@ export function addDays(date: string, days: number): string {
 }
 
 /**
- * The UTC instant for a wall-clock time on a date in the business's zone —
+ * The UTC instant for a wall-clock time on a date in the business's zone -
  * the inverse of `minutesOfDay`. Mirrors the server's conversion, so a job the
  * dispatcher puts at 1:30 PM is saved at 1:30 PM in Mokena even when the
  * dispatcher's laptop is set to another timezone.
@@ -128,7 +128,7 @@ export function zonedIso(date: string, minutesOfDayValue: number, timeZone: stri
   return new Date(candidates[0] ?? wallAsUtc - offsetAt(wallAsUtc)).toISOString();
 }
 
-/** "10:42 AM" from minutes after midnight — the demo clock and the board rulers. */
+/** "10:42 AM" from minutes after midnight - the demo clock and the board rulers. */
 export function clockFromMinutes(minutes: number): string {
   const whole = Math.floor(minutes);
   const hour = Math.floor(whole / 60);
@@ -136,7 +136,7 @@ export function clockFromMinutes(minutes: number): string {
   return `${twelve}:${String(whole % 60).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
 }
 
-/** "Wednesday 16 September" — for a date heading. */
+/** "Wednesday 16 September" - for a date heading. */
 export function longDate(date: string): string {
   const [year, month, day] = date.split("-").map(Number) as [number, number, number];
   return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(Date.UTC(year, month - 1, day)));

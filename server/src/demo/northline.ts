@@ -179,7 +179,7 @@ export const TODAY: ScriptedJob[] = [
     events: [{ status: "en_route", at: "9:08" }, { status: "on_site", at: "9:34" }],
   },
   {
-    number: 4471, customer: "osei", crew: "delgado", title: "No heat — priority", start: "10:30", end: "12:30", status: "en_route", priority: "high",
+    number: 4471, customer: "osei", crew: "delgado", title: "No heat - priority", start: "10:30", end: "12:30", status: "en_route", priority: "high",
     description: "Repair visit following yesterday's diagnosis: replace the cracked hot-surface ignitor once the quote is approved.",
     events: [{ status: "en_route", at: "10:08" }],
   },
@@ -197,16 +197,16 @@ export const TODAY: ScriptedJob[] = [
 export const BACKLOG = [
   { number: 4477, customer: "marchetti", title: "Water heater leak", priority: "urgent" as const, minutes: 120, note: "Called 8:42 AM", requestedAt: "8:42" },
   { number: 4478, customer: "lakeside", title: "Quarterly filter change", priority: "normal" as const, minutes: 60, note: "Due this week", requestedAt: "7:15" },
-  { number: 4479, customer: "bowen", title: "Estimate — new install", priority: "normal" as const, minutes: 45, note: "Customer flexible", requestedAt: "9:20" },
+  { number: 4479, customer: "bowen", title: "Estimate - new install", priority: "normal" as const, minutes: 45, note: "Customer flexible", requestedAt: "9:20" },
 ];
 
 /** Quotes, keyed to the job they belong to. Past estimate visits are scripted in `buildDemo`. */
 export const OSEI_QUOTE = {
   findings:
-    "The hot-surface ignitor has a hairline crack, so the furnace tries to light, fails, and locks out after three attempts. Everything else — the gas valve, flame sensor and blower — tested normal. Replacing the ignitor should restore heat today.",
+    "The hot-surface ignitor has a hairline crack, so the furnace tries to light, fails, and locks out after three attempts. Everything else - the gas valve, flame sensor and blower - tested normal. Replacing the ignitor should restore heat today.",
   lineItems: [
     part("Hot-surface ignitor", 214, 1, "OEM part · 1-year warranty"),
-    { ...labour(1.5), description: "Labour — replacement and test" },
+    { ...labour(1.5), description: "Labour - replacement and test" },
     fee("Diagnostic visit", 89, true, "Waived when the repair is approved"),
   ] satisfies LineItem[],
 };
@@ -232,7 +232,7 @@ export const LINDQVIST_QUOTE = {
 };
 
 export const OKONKWO_QUOTE = {
-  findings: "Indoor humidity is at 22%. A bypass humidifier on the existing furnace will bring it to a comfortable 35–40%.",
+  findings: "Indoor humidity is at 22%. A bypass humidifier on the existing furnace will bring it to a comfortable 35-40%.",
   lineItems: [part("Bypass humidifier", 520, 1, "Includes water panel and humidistat"), part("Water line and drain kit", 90), labour(3, 110), fee("First-season check", 0)] satisfies LineItem[],
 };
 

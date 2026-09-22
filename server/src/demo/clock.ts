@@ -5,8 +5,8 @@ import { env } from "../config/env";
  *
  * A real day is no use in a demo: someone opening the link at nine in the
  * evening would find every job finished and nothing moving. So the working day
- * is replayed over an hour. It starts where the designs start — Tomas on his
- * way to Amara's, the $379 quote unanswered — and ends as the last job of the
+ * is replayed over an hour. It starts where the designs start - Tomas on his
+ * way to Amara's, the $379 quote unanswered - and ends as the last job of the
  * day finishes, at which point the demo is rebuilt and the day begins again.
  *
  * The hour is counted from when the demo was last built, not from the clock on
@@ -18,7 +18,7 @@ import { env } from "../config/env";
 
 /**
  * Where each run of the day begins: 10 AM, shortly before the moment the
- * artboards show. Starting a little early matters — the half hour while Tomas
+ * artboards show. Starting a little early matters - the half hour while Tomas
  * is on his way to Amara is what the customer screen is built around, and from
  * 10:20 that would be over in ninety seconds of real time.
  */
@@ -29,7 +29,7 @@ export const DAY_END_MINUTES = 16 * 60;
 export const CYCLE_MS = 60 * 60 * 1000;
 const SPAN_MINUTES = DAY_END_MINUTES - STORY_START_MINUTES;
 
-/** Demo minutes per real minute — six, so a two-hour job runs in twenty. */
+/** Demo minutes per real minute - six, so a two-hour job runs in twenty. */
 export const SPEED = SPAN_MINUTES / 60;
 
 export type DemoClock = {
@@ -44,8 +44,8 @@ export type DemoClock = {
 };
 
 export function demoClock(now: Date = new Date(), cycleStartedAt?: Date | null): DemoClock {
-  // With no record of when the day began — a fresh database, or a demo built
-  // by an older version — treat the current hour as the run.
+  // With no record of when the day began - a fresh database, or a demo built
+  // by an older version - treat the current hour as the run.
   const startedAt = cycleStartedAt ?? new Date(Math.floor(now.getTime() / CYCLE_MS) * CYCLE_MS);
   const elapsed = Math.max(now.getTime() - startedAt.getTime(), 0);
   const through = Math.min(elapsed / CYCLE_MS, 1);

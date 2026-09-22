@@ -26,8 +26,8 @@ const getTicket = (portalToken?: string) =>
 /**
  * Keeps a screen in step with everyone else's.
  *
- * The socket cannot use the session cookie — it connects to the API host
- * directly, where that cookie is third-party — so it fetches a short-lived
+ * The socket cannot use the session cookie - it connects to the API host
+ * directly, where that cookie is third-party - so it fetches a short-lived
  * ticket over the normal API route and presents that instead. The ticket is
  * fetched again on every reconnect, which is what makes waking from sleep or a
  * dropped connection recover on its own.
@@ -61,8 +61,8 @@ export function useLive(handlers: Handlers, { portalToken, enabled = true }: Opt
 
       socket = io(host ?? window.location.origin, {
         transports: ["websocket"],
-        // Give up rather than retry forever. A socket that cannot connect —
-        // misconfigured host, API asleep — would otherwise fetch a ticket every
+        // Give up rather than retry forever. A socket that cannot connect -
+        // misconfigured host, API asleep - would otherwise fetch a ticket every
         // few seconds for as long as the tab is open, which is indistinguishable
         // from a bot hammering the API. Live updates are a bonus; the page works
         // without them.

@@ -106,7 +106,7 @@ function StatusCard({ view, demoMinutes }: { view: PortalView; demoMinutes: numb
           ? `Arriving any minute now · ${view.address.street}`
           : `On the way to ${view.address.street}`
       : job.scheduledStart && job.scheduledEnd && job.status !== "done"
-        ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} – ${clockWithPeriod(job.scheduledEnd, tz)}`
+        ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} - ${clockWithPeriod(job.scheduledEnd, tz)}`
         : job.title;
 
   const eyebrow =
@@ -212,7 +212,7 @@ function QuoteCard({ quote, timezone, firstName }: { quote: NonNullable<PortalVi
 
         {waiting ? (
           <p className="rounded-tile bg-raised px-3 py-2.5 text-center text-[12px] text-ink-muted">
-            Approving online arrives in the next release{firstName ? ` — for now, ${firstName} can take your go-ahead by phone` : ""}.
+            Approving online arrives in the next release{firstName ? ` - for now, ${firstName} can take your go-ahead by phone` : ""}.
           </p>
         ) : null}
       </div>

@@ -12,7 +12,7 @@ let io: SocketServer | null = null;
  * other screen without a refresh.
  *
  * Events carry no job data, only "this changed". Each client then reloads
- * through the API, which already decides what that person is allowed to see —
+ * through the API, which already decides what that person is allowed to see -
  * so a technician cannot learn about another crew's work by listening, and
  * there is one set of permission rules rather than two.
  */

@@ -28,7 +28,7 @@ type Props = {
   jobId: string;
   crews: Crew[];
   timezone: string;
-  /** The day the board is showing — where an unscheduled job lands by default. */
+  /** The day the board is showing - where an unscheduled job lands by default. */
   boardDate: string;
   onClose: () => void;
   /** Called after any successful change, so the board behind can refresh. */
@@ -152,7 +152,7 @@ function JobBody({ job, crews, timezone, boardDate, onChanged }: { job: JobDetai
       <Section label="When">
         {job.scheduledStart && job.scheduledEnd ? (
           <p className="text-[14px]">
-            {shortDate(job.scheduledStart, timezone)} · {clockWithPeriod(job.scheduledStart, timezone)} – {clockWithPeriod(job.scheduledEnd, timezone)}
+            {shortDate(job.scheduledStart, timezone)} · {clockWithPeriod(job.scheduledStart, timezone)} - {clockWithPeriod(job.scheduledEnd, timezone)}
             {job.crew ? <span className="text-ink-muted"> · {job.crew.name}, {job.crew.van}</span> : null}
           </p>
         ) : (

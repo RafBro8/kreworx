@@ -78,7 +78,7 @@ function fakeServer(role: Role) {
       detail({
         id: "j-4471",
         number: 4471,
-        title: "No heat — priority",
+        title: "No heat - priority",
         status: "en_route",
         priority: "high",
         crew: { id: "c-delgado", name: "Delgado", van: "VAN 08" },
@@ -223,9 +223,9 @@ describe("the dispatch board", () => {
     const user = userEvent.setup();
     renderBoard();
 
-    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
+    await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
 
-    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+    const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
     expect(await within(panel).findByText("Side gate code 4471. Dog is friendly.")).toBeInTheDocument();
     expect(within(panel).getByText("Goodman GMVC96 · 2013")).toBeInTheDocument();
     expect(within(panel).getByText("$379.00")).toBeInTheDocument();
@@ -274,8 +274,8 @@ describe("the dispatch board", () => {
     const user = userEvent.setup();
     renderBoard();
 
-    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
-    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+    await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+    const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
     await user.click(await within(panel).findByRole("button", { name: "Arrived" }));
 
     await waitFor(() => expect(server.calls).toContainEqual({ method: "PATCH", url: "/api/jobs/j-4471/status", body: { from: "en_route", to: "on_site" } }));
@@ -289,8 +289,8 @@ describe("the dispatch board", () => {
     const user = userEvent.setup();
     renderBoard();
 
-    await user.click(await screen.findByRole("button", { name: /No heat — priority/ }));
-    const panel = await screen.findByRole("dialog", { name: "No heat — priority" });
+    await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+    const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
 
     const actions = await within(panel).findByRole("group", { name: "Update status" });
     expect(within(actions).getAllByRole("button").map((button) => button.textContent)).toEqual(["Arrived"]);
@@ -302,7 +302,7 @@ describe("the dispatch board", () => {
     /**
      * jsdom gives every element a zero-sized box, so the board cannot work out
      * where a drop landed. Each lane and block is 1000px wide here, which makes
-     * the maths easy to read: half way across a 7 AM–5 PM board is noon.
+     * the maths easy to read: half way across a 7 AM-5 PM board is noon.
      */
     beforeEach(() => {
       vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
@@ -393,7 +393,7 @@ describe("the dispatch board", () => {
       vi.stubGlobal("fetch", server.fetch);
       renderBoard();
 
-      expect(await screen.findByRole("button", { name: /No heat — priority/ })).toHaveAttribute("draggable", "false");
+      expect(await screen.findByRole("button", { name: /No heat - priority/ })).toHaveAttribute("draggable", "false");
       expect(screen.getByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "true");
     });
 

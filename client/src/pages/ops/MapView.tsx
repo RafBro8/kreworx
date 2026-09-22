@@ -21,7 +21,7 @@ export default function MapView() {
       </div>
 
       <ComingUp title="Where every van is, right now" stage="Stage 3">
-        Vans on the map, the route to the next job, and the day's numbers along the bottom —
+        Vans on the map, the route to the next job, and the day's numbers along the bottom -
         the screen a dispatcher leaves open all day, and the one that sells the product.
       </ComingUp>
     </div>

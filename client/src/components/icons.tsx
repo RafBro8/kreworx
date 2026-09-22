@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * One stroke weight, one join style, one size by default — the icons are
+ * One stroke weight, one join style, one size by default - the icons are
  * meant to disappear into the interface rather than decorate it.
  */
 function Icon({ children, size = 20 }: { children: ReactNode; size?: number }) {

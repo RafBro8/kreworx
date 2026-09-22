@@ -125,7 +125,7 @@ describe("the Kreworx API", () => {
       expect(response.body.map((job: { title: string }) => job.title)).toEqual([
         "Water heater leak",
         "Quarterly filter change",
-        "Estimate — new install",
+        "Estimate - new install",
       ]);
     });
 

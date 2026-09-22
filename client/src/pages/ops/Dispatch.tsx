@@ -28,7 +28,7 @@ const BOARD_START = 7 * 60;
 const BOARD_END = 17 * 60;
 const SPAN = BOARD_END - BOARD_START;
 const HOURS = Array.from({ length: SPAN / 60 }, (_, index) => 7 + index);
-/** Dropped jobs land on a quarter hour — finer than that is false precision. */
+/** Dropped jobs land on a quarter hour - finer than that is false precision. */
 const SNAP = 15;
 
 const blockTone: Record<Tone, string> = {
@@ -290,7 +290,7 @@ function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint
     <div className="grid h-[92px] grid-cols-[176px_1fr] items-center border-b border-line/60">
       <div className="flex items-center gap-3">
         <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-raised text-xs font-medium text-ink-muted">
-          {crew.lead ? initials(crew.lead.name) : "—"}
+          {crew.lead ? initials(crew.lead.name) : "-"}
         </span>
         <div className="flex flex-col gap-[3px]">
           <span className="text-sm font-medium">{crew.name}</span>
@@ -398,7 +398,7 @@ function JobBlock({
         }}
         onDragEnd={onEndDrag}
         onClick={() => onOpen(job.id)}
-        title={`#${job.number} ${job.title} — ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
+        title={`#${job.number} ${job.title} - ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
         className={`flex h-full w-full min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-tile border border-l-[3px] px-3 text-left transition-[filter] hover:brightness-125 ${blockTone[tone]} ${
           selected ? "ring-2 ring-accent" : ""
         } ${dragging ? "opacity-40" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
@@ -478,7 +478,7 @@ function UnscheduledQueue({
   );
 }
 
-/** "Whitaker" for a household, "Brightway Dental" for a business — how a dispatcher actually says it. */
+/** "Whitaker" for a household, "Brightway Dental" for a business - how a dispatcher actually says it. */
 function surnameOrBusiness(job: JobSummary): string {
   if (!job.customer) return "";
   return job.customer.kind === "commercial" ? job.customer.name : (job.customer.name.split(" ").pop() ?? job.customer.name);

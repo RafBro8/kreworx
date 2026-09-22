@@ -1,7 +1,7 @@
 {
   "name": "kreworx-server",
   "version": "1.0.0",
-  "description": "Kreworx API — Express + Socket.io + Mongoose",
+  "description": "Kreworx API - Express + Socket.io + Mongoose",
   "main": "dist/server.js",
   "type": "commonjs",
   "scripts": {

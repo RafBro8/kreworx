@@ -115,7 +115,7 @@ export default function OpsLayout() {
 }
 
 /**
- * Who you are, and — in the demo — who else you could be. Switching seats is
+ * Who you are, and - in the demo - who else you could be. Switching seats is
  * the fastest way to show that the owner, the dispatcher and a technician are
  * looking at one shared day.
  */

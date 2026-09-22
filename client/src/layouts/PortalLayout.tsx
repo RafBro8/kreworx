@@ -2,7 +2,7 @@ import { Outlet } from "react-router";
 
 /**
  * The customer never sees the ops app. A phone-shaped column that centres
- * itself on a laptop — how it is opened from a text message, and how it is
+ * itself on a laptop - how it is opened from a text message, and how it is
  * shown on a big screen in a demo.
  */
 export default function PortalLayout() {

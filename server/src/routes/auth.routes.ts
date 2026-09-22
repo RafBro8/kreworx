@@ -69,7 +69,7 @@ router.post("/auth/demo", async (req, res) => {
   const parsed = demoSignInBody.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Choose someone to sign in as");
 
-  // Only seeded demo staff can be entered this way — never a real account.
+  // Only seeded demo staff can be entered this way - never a real account.
   const user = await User.findOne({ _id: parsed.data.userId, isDemo: true }, { companyId: 1, role: 1 }).lean();
   if (!user) throw ApiError.notFound("That demo account does not exist");
 

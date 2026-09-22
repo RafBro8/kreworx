@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** A small uppercase mono label — the spine sheet's section marker. */
+/** A small uppercase mono label - the spine sheet's section marker. */
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
     <span className="font-mono text-[10.5px] tracking-[0.12em] text-ink-faint uppercase">

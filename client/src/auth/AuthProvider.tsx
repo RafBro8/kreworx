@@ -10,8 +10,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState({ status: "signedIn", me: await getMe() });
     } catch (error) {
-      // Only a 401 means "not signed in". Anything else — the API asleep, a
-      // network blip — should not quietly throw someone back to the start.
+      // Only a 401 means "not signed in". Anything else - the API asleep, a
+      // network blip - should not quietly throw someone back to the start.
       if (error instanceof ApiRequestError && error.status === 401) {
         setState({ status: "signedOut" });
       } else {

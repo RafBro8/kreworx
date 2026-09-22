@@ -1,6 +1,6 @@
 import { Card, Display } from "../../components/ui";
 
-/** Someone reached /portal without a job link — usually a trimmed URL. */
+/** Someone reached /portal without a job link - usually a trimmed URL. */
 export default function PortalHome() {
   return (
     <Card className="mt-6 rounded-2xl p-6">

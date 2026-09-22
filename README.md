@@ -1,6 +1,6 @@
 # Kreworx
 
-Field operations for home-services contractors — dispatch, crews, customers and
+Field operations for home-services contractors - dispatch, crews, customers and
 the money, in one place.
 
 A plumbing, HVAC or electrical business with four to twenty vans runs its day on
@@ -10,9 +10,9 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1–2 are done and stage 3 is under way: both
+> **Status: in build.** Stages 1-2 are done and stage 3 is under way: both
 > deploys are live, the app runs on a seeded demo business with real sign-in and
-> roles, and the board is working — jobs can be opened, dragged between vans and
+> roles, and the board is working - jobs can be opened, dragged between vans and
 > moved along. Screens still to come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
@@ -26,7 +26,7 @@ work with one tap.
 
 ## One system, two themes
 
-The theme is not a user preference — it is a property of the surface.
+The theme is not a user preference - it is a property of the surface.
 
 **Ops** is dark, because dispatch is on a screen somebody stares at for nine
 hours. **Customer** is light, because the portal is opened on a phone in a
@@ -84,8 +84,8 @@ in Chicago.
 - **Live, without polling.** Events say only that something changed and which
   day it belongs to; each screen then reloads through the API, so one set of
   permission rules decides what anyone sees. The socket cannot use the session
-  cookie — it talks to the API host directly, where that cookie is
-  third-party — so a page trades its cookie for a one-minute ticket, fetched
+  cookie - it talks to the API host directly, where that cookie is
+  third-party - so a page trades its cookie for a one-minute ticket, fetched
   again on every reconnect.
 - **The demo can be put back.** Everyone shares one business, so the owner has a
   reset that rebuilds today; it also rebuilds itself each morning.
@@ -118,7 +118,7 @@ Check the stack is wired end to end:
 curl http://localhost:4200/api/health
 ```
 
-The ops header reports the same thing — a green dot and "API connected" means
+The ops header reports the same thing - a green dot and "API connected" means
 the database answered too.
 
 ## Checks
@@ -142,7 +142,7 @@ Render. No environment variables.
 
 **API → Render.** [`render.yaml`](render.yaml) describes the service: root
 directory `server`, health check on `/api/health`, and the free plan while
-this is in build — free services sleep when idle, so move to starter before
+this is in build - free services sleep when idle, so move to starter before
 showing the URL to anyone. Set `MONGODB_URI`, `JWT_SECRET` (any long random
 string), `DEMO_MODE=true`, `PUBLIC_API_URL` (this service's own URL, where browsers open
 their sockets) and `CLIENT_ORIGIN` in the dashboard.
@@ -158,8 +158,8 @@ curl https://<api-host>/api/health
 ## Repository
 
 ```
-client/   React app — ops and customer surfaces, design tokens, app shell
-server/   Express API — config, routes, middleware, realtime
+client/   React app - ops and customer surfaces, design tokens, app shell
+server/   Express API - config, routes, middleware, realtime
 .github/  CI
 ```
 
@@ -167,11 +167,11 @@ server/   Express API — config, routes, middleware, realtime
 
 | Stage | |
 |---|---|
-| 1 | **Foundation** — repo, design tokens, app shell, both deploys live |
+| 1 | **Foundation** - repo, design tokens, app shell, both deploys live |
 | 2 | Data model, roles, a seeded demo business and a role switcher |
 | 3 | The dispatch board and the live map |
-| 4 | The customer portal — live arrival, photos, one-tap approval |
+| 4 | The customer portal - live arrival, photos, one-tap approval |
 | 5 | Quotes and invoices, Stripe in test mode, PDF |
-| 6 | The crew's phone app — the day's stops, photos, notes |
+| 6 | The crew's phone app - the day's stops, photos, notes |
 | 7 | The owner's dashboard |
 | 8 | Polish, end-to-end tests in CI |

@@ -56,7 +56,7 @@ export default function Welcome() {
           </h1>
           <p className="text-[15px] leading-relaxed text-ink-muted">
             Northline Mechanical is a heating and cooling contractor in Mokena, Illinois, with four vans on the road.
-            It is twenty past ten. Pick who you want to be — no sign-up, and you can switch seats at any time.
+            It is twenty past ten. Pick who you want to be - no sign-up, and you can switch seats at any time.
           </p>
         </section>
 
@@ -105,7 +105,7 @@ export default function Welcome() {
               >
                 <SeatHeader eyebrow="Customer" name={accounts.data.customer.name} />
                 <p className="text-[13px] leading-relaxed text-ink-muted">
-                  Her furnace is out. She has a text with a link — this is what opens.
+                  Her furnace is out. She has a text with a link - this is what opens.
                 </p>
                 <span className="mt-auto text-[13px] font-medium text-accent">Open her link →</span>
               </Link>

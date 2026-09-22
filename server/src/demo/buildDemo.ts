@@ -26,7 +26,7 @@ import {
  *
  * Pure apart from the token generator it is handed: the same `now` always
  * builds the same business, which is what lets the tests pin exact numbers.
- * Nothing here touches the database — `seedDemo` owns that.
+ * Nothing here touches the database - `seedDemo` owns that.
  */
 
 const TZ = COMPANY.timezone;
@@ -257,10 +257,10 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   };
 
   // Scripted visits on earlier days that today's story depends on.
-  const oseiDiagnosis = scheduledDraft({ day: yesterday, crew: "delgado", customerKey: "osei", title: "No heat — diagnostic", startMinutes: at("13:00"), minutes: 90, status: "done", description: "Furnace locking out after three ignition attempts." });
+  const oseiDiagnosis = scheduledDraft({ day: yesterday, crew: "delgado", customerKey: "osei", title: "No heat - diagnostic", startMinutes: at("13:00"), minutes: 90, status: "done", description: "Furnace locking out after three ignition attempts." });
   const halvorsenDiagnosis = scheduledDraft({ day: twoBack, crew: "whitfield", customerKey: "halvorsen", title: "AC not starting", startMinutes: at("10:00"), minutes: 90, status: "done" });
-  const lindqvistEstimate = scheduledDraft({ day: threeBack, crew: "whitfield", customerKey: "lindqvist", title: "Estimate — furnace replacement", startMinutes: at("14:00"), minutes: 60, status: "done" });
-  const okonkwoEstimate = scheduledDraft({ day: twoBack, crew: "novak", customerKey: "okonkwo", title: "Estimate — humidifier", startMinutes: at("13:30"), minutes: 60, status: "done" });
+  const lindqvistEstimate = scheduledDraft({ day: threeBack, crew: "whitfield", customerKey: "lindqvist", title: "Estimate - furnace replacement", startMinutes: at("14:00"), minutes: 60, status: "done" });
+  const okonkwoEstimate = scheduledDraft({ day: twoBack, crew: "novak", customerKey: "okonkwo", title: "Estimate - humidifier", startMinutes: at("13:30"), minutes: 60, status: "done" });
   drafts.push(oseiDiagnosis, halvorsenDiagnosis, lindqvistEstimate, okonkwoEstimate);
 
   for (const day of pastDays) {

@@ -1,6 +1,6 @@
 import { model, Schema, type InferSchemaType } from "mongoose";
 
-/** A contracting business — the tenant. Every other document belongs to one. */
+/** A contracting business - the tenant. Every other document belongs to one. */
 const companySchema = new Schema(
   {
     name: { type: String, required: true, trim: true },

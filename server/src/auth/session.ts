@@ -14,7 +14,7 @@ export type SessionClaims = { userId: string; companyId: string; role: Role };
  * The session is a signed token in an httpOnly cookie: page scripts cannot
  * read it, and the browser sends it with every same-site API call. The API is
  * reached through the client's own domain (a Vercel rewrite), which is what
- * keeps this cookie first-party — and therefore not blocked by Safari.
+ * keeps this cookie first-party - and therefore not blocked by Safari.
  */
 export function signSession(claims: SessionClaims): string {
   return jwt.sign({ cid: claims.companyId, role: claims.role }, env.jwtSecret, {

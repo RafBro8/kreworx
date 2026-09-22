@@ -35,7 +35,7 @@ export default function Owner() {
             />
             <Stat
               label="Completion"
-              value={summary.data.jobsToday ? `${Math.round((summary.data.doneToday / summary.data.jobsToday) * 100)}%` : "—"}
+              value={summary.data.jobsToday ? `${Math.round((summary.data.doneToday / summary.data.jobsToday) * 100)}%` : "-"}
               note="Of today's booked work"
             />
           </div>
@@ -43,7 +43,7 @@ export default function Owner() {
       </Card>
 
       <ComingUp title="The owner's morning read" stage="Stage 7">
-        Revenue over time, jobs won and lost, first-time fix rate, and which crew is running behind — the page an
+        Revenue over time, jobs won and lost, first-time fix rate, and which crew is running behind - the page an
         owner checks with coffee before the trucks leave.
       </ComingUp>
 
@@ -111,7 +111,7 @@ function ResetDemo({ onReset }: { onReset: () => void }) {
         <Eyebrow>Demo</Eyebrow>
         <p className="max-w-2xl text-[13px] leading-relaxed text-ink-muted">
           Everyone trying Kreworx shares this one business, so jobs other people moved or cancelled stay moved.
-          Resetting rebuilds today from scratch — the same thing that happens on its own each morning.
+          Resetting rebuilds today from scratch - the same thing that happens on its own each morning.
         </p>
 
         {asking ? (
