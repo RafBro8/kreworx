@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 
 import { homeFor } from "./auth/access";
@@ -8,12 +9,15 @@ import PortalLayout from "./layouts/PortalLayout";
 import NotFound from "./pages/NotFound";
 import Customers from "./pages/ops/Customers";
 import Dispatch from "./pages/ops/Dispatch";
-import MapView from "./pages/ops/MapView";
 import Money from "./pages/ops/Money";
 import Owner from "./pages/ops/Owner";
 import PortalHome from "./pages/portal/PortalHome";
 import PortalJob from "./pages/portal/PortalJob";
 import Welcome from "./pages/Welcome";
+
+// The map pulls in a map library; loading it only when someone opens the map
+// keeps it out of the bundle everyone else downloads.
+const MapView = lazy(() => import("./pages/ops/MapView"));
 
 function Home() {
   const auth = useAuth();
@@ -35,7 +39,16 @@ export default function App() {
         }
       >
         <Route path="dispatch" element={<RequireSection section="dispatch"><Dispatch /></RequireSection>} />
-        <Route path="map" element={<RequireSection section="map"><MapView /></RequireSection>} />
+        <Route
+          path="map"
+          element={
+            <RequireSection section="map">
+              <Suspense fallback={<p className="text-sm text-ink-muted">Loading the map…</p>}>
+                <MapView />
+              </Suspense>
+            </RequireSection>
+          }
+        />
         <Route path="customers" element={<RequireSection section="customers"><Customers /></RequireSection>} />
         <Route path="money" element={<RequireSection section="money"><Money /></RequireSection>} />
         <Route path="owner" element={<RequireSection section="owner"><Owner /></RequireSection>} />

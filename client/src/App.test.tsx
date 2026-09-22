@@ -38,6 +38,7 @@ const job = (overrides: Partial<JobSummary>): JobSummary => ({
   requestedAt: "2026-09-16T13:42:00Z",
   customer: { name: "Someone", kind: "residential" },
   address: { street: "1 Street", city: "Mokena" },
+  location: { lat: 41.5261, lng: -87.8892 },
   ...overrides,
 });
 

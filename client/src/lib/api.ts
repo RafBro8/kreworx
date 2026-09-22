@@ -92,6 +92,7 @@ export type JobSummary = {
   requestedAt: string;
   customer: { name: string; kind: "residential" | "commercial" } | null;
   address: { street: string; city: string } | null;
+  location: { lat: number; lng: number } | null;
 };
 
 /** Present only on the demo deployment: which minute of the fast day it is. */

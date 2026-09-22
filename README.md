@@ -87,6 +87,12 @@ in Chicago.
   cookie - it talks to the API host directly, where that cookie is
   third-party - so a page trades its cookie for a one-minute ticket, fetched
   again on every reconnect.
+- **The map is a real map.** Street tiles come from OpenFreeMap, which serves
+  OpenStreetMap data with no account and no key; the light style is inverted to
+  sit in the dark theme, and the pins, vans and routes are ours, drawn over it.
+  The map library loads only when someone opens the map, so it stays out of the
+  bundle everyone else downloads. If the tiles cannot be reached the page says
+  so and still shows where every job is.
 - **The demo can be put back.** Everyone shares one business, so the owner has a
   reset that rebuilds today; it also rebuilds itself each morning.
 

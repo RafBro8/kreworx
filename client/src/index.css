@@ -148,3 +148,38 @@ body {
   outline: 2px solid var(--accent-base, #7fc8de);
   outline-offset: 2px;
 }
+
+/* ---- the live map ------------------------------------------------------ */
+/*
+ * OpenFreeMap's styles are built for light interfaces and the ops app is not,
+ * so the tile canvas is inverted to sit in the dark theme. Markers live in a
+ * separate DOM layer, so they keep the accent colours they were given.
+ */
+[data-theme="ops"] .maplibregl-canvas {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.55);
+}
+
+/* Attribution and controls have to stay legible, and OpenStreetMap's credit
+   has to stay visible - it is the condition of using the tiles. */
+[data-theme="ops"] .maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--surface-panel) 88%, transparent);
+  color: var(--ink-muted);
+  font-size: 10.5px;
+}
+
+[data-theme="ops"] .maplibregl-ctrl-attrib a {
+  color: var(--ink-muted);
+}
+
+[data-theme="ops"] .maplibregl-ctrl-group {
+  background: var(--surface-panel);
+  border: 1px solid var(--surface-border);
+}
+
+[data-theme="ops"] .maplibregl-ctrl-group button + button {
+  border-top-color: var(--surface-border);
+}
+
+[data-theme="ops"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}

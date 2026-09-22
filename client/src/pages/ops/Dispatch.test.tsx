@@ -147,6 +147,7 @@ function fakeServer(role: Role) {
     requestedAt: job.requestedAt,
     customer: job.customer ? { name: job.customer.name, kind: job.customer.kind } : null,
     address: job.property ? { street: job.property.street, city: job.property.city } : null,
+    location: { lat: 41.5261, lng: -87.8892 },
   });
 
   const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

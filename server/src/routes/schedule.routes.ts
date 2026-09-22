@@ -73,7 +73,7 @@ function findJobs(filter: Record<string, unknown>) {
 async function withCustomers(jobs: JobLean[]) {
   const [customers, properties] = await Promise.all([
     Customer.find({ _id: { $in: jobs.map((job) => job.customerId) } }, { name: 1, kind: 1 }).lean(),
-    Property.find({ _id: { $in: jobs.map((job) => job.propertyId) } }, { street: 1, city: 1 }).lean(),
+    Property.find({ _id: { $in: jobs.map((job) => job.propertyId) } }, { street: 1, city: 1, location: 1 }).lean(),
   ]);
 
   return jobs.map((job) => {
@@ -93,6 +93,8 @@ async function withCustomers(jobs: JobLean[]) {
       requestedAt: job.requestedAt,
       customer: customer ? { name: customer.name, kind: customer.kind } : null,
       address: property ? { street: property.street, city: property.city } : null,
+      // The map needs to know where the work is.
+      location: property?.location ? { lat: property.location.lat, lng: property.location.lng } : null,
     };
   });
 }
