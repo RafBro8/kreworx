@@ -151,16 +151,12 @@ body {
 
 /* ---- the live map ------------------------------------------------------ */
 /*
- * OpenFreeMap's styles are built for light interfaces and the ops app is not,
- * so the tile canvas is inverted to sit in the dark theme. Markers live in a
- * separate DOM layer, so they keep the accent colours they were given.
+ * The tiles come dark from OpenFreeMap, so the canvas is left alone - it used
+ * to be inverted here to darken a light style. Only the library's own
+ * furniture is restyled: attribution and controls have to stay legible, and
+ * OpenStreetMap's credit has to stay visible, which is the condition of using
+ * the tiles.
  */
-[data-theme="ops"] .maplibregl-canvas {
-  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.55);
-}
-
-/* Attribution and controls have to stay legible, and OpenStreetMap's credit
-   has to stay visible - it is the condition of using the tiles. */
 [data-theme="ops"] .maplibregl-ctrl-attrib {
   background: color-mix(in srgb, var(--surface-panel) 88%, transparent);
   color: var(--ink-muted);

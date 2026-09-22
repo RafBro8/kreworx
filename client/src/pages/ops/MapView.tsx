@@ -1,4 +1,5 @@
-import { GeoJSONSource, Map as MapLibreMap, Marker, NavigationControl } from "maplibre-gl";
+import { GeoJSONSource, Map as MapLibreMap, Marker, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 
@@ -16,10 +17,21 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 /**
  * OpenFreeMap serves OpenStreetMap vector tiles with no account and no key.
- * The style is light; `index.css` inverts the tile canvas so it sits in the
- * ops theme, which leaves our own markers - separate DOM - alone.
+ * Its dark style is used as it comes. The first version took the light style
+ * and inverted the canvas in CSS to darken it, which is a filter over WebGL
+ * for no good reason now that a dark style exists.
  */
-const STYLE = "https://tiles.openfreemap.org/styles/positron";
+const STYLE = "https://tiles.openfreemap.org/styles/dark";
+
+/**
+ * MapLibre parses tiles in a web worker, and works out where that worker lives
+ * from `import.meta.url` - which, once bundled, is this chunk. It therefore
+ * asked for /assets/maplibre-gl-worker.mjs, a file no bundler emits, and the
+ * single-page fallback answered with index.html. The worker never started, so
+ * not one tile was ever requested and the map came up empty under its pins.
+ * Vite builds the worker for us instead, and we hand over the real URL.
+ */
+setWorkerUrl(workerUrl);
 
 /** The service area: the south-west suburbs, before any job has loaded. */
 const HOME = { center: [-87.87, 41.54] as [number, number], zoom: 10.4 };

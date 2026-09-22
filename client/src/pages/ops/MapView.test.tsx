@@ -21,6 +21,7 @@ const drawn = {
   lines: [] as [number, number][][],
   handlers: new Map<string, () => void>(),
   fitted: 0,
+  workerUrl: null as string | null,
 };
 
 vi.mock("maplibre-gl", () => {
@@ -69,7 +70,15 @@ vi.mock("maplibre-gl", () => {
     }
   }
 
-  return { Map, Marker, NavigationControl: class {}, GeoJSONSource: class {} };
+  return {
+    Map,
+    Marker,
+    NavigationControl: class {},
+    GeoJSONSource: class {},
+    setWorkerUrl: (url: string) => {
+      drawn.workerUrl = url;
+    },
+  };
 });
 
 vi.mock("socket.io-client", () => ({
@@ -234,6 +243,16 @@ describe("the live map", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent("map tiles could not be reached");
     expect(screen.getByText("Done today")).toBeInTheDocument();
+  });
+
+  it("hands MapLibre a worker url the build actually emits", async () => {
+    // Without this the library resolves its worker next to the bundled chunk,
+    // asks for a file no bundler writes, is served index.html by the
+    // single-page fallback, and then never requests a single tile.
+    await renderMap();
+
+    expect(drawn.workerUrl).toBeTruthy();
+    expect(drawn.workerUrl).not.toContain("index.html");
   });
 
   it("keeps the map off the main bundle until someone opens it", async () => {
