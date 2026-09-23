@@ -345,6 +345,67 @@ describe("Kreworx", () => {
       expect(screen.queryByText(/Photos? from the visit/)).toBeNull();
     });
 
+    it("writes the visit out in her words, not the dispatcher's, with the times", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({
+                ...portal,
+                job: {
+                  ...portal.job,
+                  timeline: [
+                    { status: "scheduled", at: "2026-09-16T13:00:00Z" },
+                    { status: "en_route", at: "2026-09-16T15:08:00Z" },
+                  ],
+                },
+              })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("What happened")).toBeInTheDocument();
+      expect(screen.getByText("Visit booked")).toBeInTheDocument();
+      // Her technician by name, rather than "en route".
+      expect(screen.getByText("Tomas set off")).toBeInTheDocument();
+      expect(screen.queryByText("En route")).toBeNull();
+      expect(screen.getByText("10:08 AM")).toBeInTheDocument();
+    });
+
+    it("says when a finished visit finished, instead of repeating the job title", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({
+                ...portal,
+                job: {
+                  ...portal.job,
+                  status: "done",
+                  timeline: [
+                    { status: "en_route", at: "2026-09-16T15:08:00Z" },
+                    { status: "on_site", at: "2026-09-16T15:34:00Z" },
+                    { status: "done", at: "2026-09-16T17:04:00Z" },
+                  ],
+                },
+              })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("All done")).toBeInTheDocument();
+      expect(screen.getByText("Finished at 12:04 PM")).toBeInTheDocument();
+      expect(screen.getByText("Work completed")).toBeInTheDocument();
+    });
+
+    it("keeps the record out of the way before anything has happened", async () => {
+      renderAt("/portal/osei-token-123456789");
+      expect(await screen.findByText("Tomas Delgado")).toBeInTheDocument();
+      expect(screen.queryByText("What happened")).toBeNull();
+    });
+
     it("lets her approve the quote from the link, and shows the answer standing", async () => {
       const user = userEvent.setup();
       const sent: { decision: string }[] = [];

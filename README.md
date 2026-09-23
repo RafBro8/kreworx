@@ -13,8 +13,8 @@ work with one tap.
 > **Status: in build.** Stages 1-3 are done and stage 4 has started: both
 > deploys are live, the app runs on a seeded demo business with real sign-in and
 > roles, the board and the live map are working, and a customer can now approve
-> their quote and see the photos of the work from the link. Screens still to
-> come say on the page what they will hold.
+> their quote, see the photos of the work and read the record of the visit from
+> the link. Screens still to come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.

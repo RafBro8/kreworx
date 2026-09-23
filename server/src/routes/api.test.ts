@@ -7,6 +7,7 @@ import { SESSION_COOKIE, signSession } from "../auth/session";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
 import { Company, Customer, ensureIndexes, Job, Property, Quote, User } from "../models";
+import { answerQuote } from "../services/quotes";
 
 const app = createApp();
 
@@ -248,17 +249,39 @@ describe("the Kreworx API", () => {
 
     it("takes one answer, however many times the button is tapped", async () => {
       const link = await token();
-      const [first, second] = await Promise.all([
-        request(app).post(`/api/portal/${link}/quote`).send({ decision: "approved" }),
-        request(app).post(`/api/portal/${link}/quote`).send({ decision: "declined" }),
+
+      // Both answers are held between reading the quote and writing to it, so
+      // they genuinely overlap. Left to chance the two requests usually run
+      // one after the other, and the second is simply told there is nothing
+      // waiting - which is the right answer, but not the one being tested.
+      let arrived = 0;
+      let release!: () => void;
+      const bothRead = new Promise<void>((resolve) => (release = resolve));
+      const beforeWrite = async () => {
+        arrived += 1;
+        if (arrived >= 2) release();
+        await Promise.race([bothRead, new Promise((resolve) => setTimeout(resolve, 400))]);
+      };
+
+      const outcomes = await Promise.allSettled([
+        answerQuote(link, "approved", { beforeWrite }),
+        answerQuote(link, "declined", { beforeWrite }),
       ]);
 
-      // Whichever lands first wins; the other is told, rather than silently
-      // overwriting an answer the customer already gave.
-      expect([first.status, second.status].sort()).toEqual([204, 409]);
-      expect((await request(app).get(`/api/portal/${link}`)).body.quote.status).toBe(
-        first.status === 204 ? "approved" : "declined",
-      );
+      expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["fulfilled", "rejected"]);
+      const refused = outcomes.find((outcome) => outcome.status === "rejected") as PromiseRejectedResult;
+      expect(refused.reason).toMatchObject({ status: 409 });
+
+      // Whichever won, exactly one answer stands.
+      const answered = (await request(app).get(`/api/portal/${link}`)).body.quote.status;
+      expect(["approved", "declined"]).toContain(answered);
+    });
+
+    it("tells a second tap that arrives later there is nothing left to answer", async () => {
+      const link = await token();
+      expect((await request(app).post(`/api/portal/${link}/quote`).send({ decision: "approved" })).status).toBe(204);
+      expect((await request(app).post(`/api/portal/${link}/quote`).send({ decision: "declined" })).status).toBe(404);
+      expect((await request(app).get(`/api/portal/${link}`)).body.quote.status).toBe("approved");
     });
 
     it("starts the work again when the job was held waiting on her", async () => {

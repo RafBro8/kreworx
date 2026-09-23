@@ -471,6 +471,50 @@ describe("the dispatch board", () => {
       expect(await within(screen.getByRole("list", { name: "Delgado's jobs" })).findByText(/On site/i)).toBeInTheDocument();
     });
 
+    it("refreshes a panel somebody has open when that job changes under them", async () => {
+      // The board behind the panel reloaded from the first release; the panel
+      // itself did not, so a dispatcher reading a job saw a stale copy until
+      // they closed and reopened it.
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      const user = userEvent.setup();
+      renderBoard();
+
+      await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+      const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
+      // The action offered is the clearest signal of what the panel believes.
+      expect(await within(panel).findByRole("button", { name: "Arrived" })).toBeInTheDocument();
+
+      const socket = await liveSocket();
+      const osei = server.jobs.get("j-4471")!;
+      server.jobs.set("j-4471", { ...osei, status: "on_site" });
+      fire(socket, "board:changed", { jobId: "j-4471", dates: ["2026-09-16"], reason: "status" });
+
+      await waitFor(() => expect(within(panel).getAllByText("On site").length).toBeGreaterThan(0));
+    });
+
+    it("leaves an open panel alone when the change is to a different job", async () => {
+      const server = fakeServer("dispatcher");
+      vi.stubGlobal("fetch", server.fetch);
+      const user = userEvent.setup();
+      renderBoard();
+
+      await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
+      await screen.findByRole("dialog", { name: "No heat - priority" });
+      const socket = await liveSocket();
+
+      const panelCalls = () => server.calls.filter((call) => call.url === "/api/jobs/j-4471").length;
+      const boardCalls = () => server.calls.filter((call) => call.url === "/api/jobs").length;
+      const [panelBefore, boardBefore] = [panelCalls(), boardCalls()];
+
+      fire(socket, "board:changed", { jobId: "j-4469", dates: ["2026-09-16"], reason: "status" });
+
+      // The board reloads, because the day changed; the panel does not, because
+      // the job it is showing did not.
+      await waitFor(() => expect(boardCalls()).toBeGreaterThan(boardBefore));
+      expect(panelCalls()).toBe(panelBefore);
+    });
+
     it("ignores a change to a day it is not showing", async () => {
       const server = fakeServer("dispatcher");
       vi.stubGlobal("fetch", server.fetch);

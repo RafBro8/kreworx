@@ -34,6 +34,13 @@ type Props = {
   onClose: () => void;
   /** Called after any successful change, so the board behind can refresh. */
   onChanged: () => void;
+  /**
+   * Bumped by the screen behind whenever a live event touches this job. The
+   * panel holds no socket of its own - one per screen is enough, and two would
+   * mean two tickets and two reconnects - so this is how a change somebody
+   * else made reaches a panel that is already open.
+   */
+  revision?: number;
 };
 
 /**
@@ -43,9 +50,9 @@ type Props = {
  * statuses and whether the job can move, and the panel renders exactly those.
  * The rules live in one place, on the server.
  */
-export default function JobPanel({ jobId, crews, timezone, boardDate, onClose, onChanged }: Props) {
+export default function JobPanel({ jobId, crews, timezone, boardDate, onClose, onChanged, revision = 0 }: Props) {
   const [version, setVersion] = useState(0);
-  const job = useApi(() => getJob(jobId), `${jobId}:${version}`);
+  const job = useApi(() => getJob(jobId), `${jobId}:${version}:${revision}`);
   const titleId = useId();
   const closeButton = useRef<HTMLButtonElement>(null);
 

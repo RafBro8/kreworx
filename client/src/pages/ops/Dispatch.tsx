@@ -92,8 +92,14 @@ export default function Dispatch() {
   // being looked at - or when the whole demo was rebuilt underneath it.
   const shownDate = day.status === "ready" ? day.data.date : null;
   const demoMinutes = useDemoMinutes(day.status === "ready" ? day.data.demo : null);
+  // A change to the job somebody has open has to reach the panel too, not just
+  // the board underneath it.
+  const [openJobRevision, setOpenJobRevision] = useState(0);
+
   const { live } = useLive({
     onBoardChanged: (event) => {
+      // useLive keeps the latest handler, so this reads the job open right now.
+      if (event.jobId === openJob) setOpenJobRevision((seen) => seen + 1);
       if (event.reason === "demo-reset" || event.dates.length === 0 || (shownDate && event.dates.includes(shownDate))) {
         refresh();
       }
@@ -250,7 +256,15 @@ export default function Dispatch() {
       </div>
 
       {openJob ? (
-        <JobPanel jobId={openJob} crews={crews.data} timezone={timezone} boardDate={date} onClose={closePanel} onChanged={refresh} />
+        <JobPanel
+          jobId={openJob}
+          crews={crews.data}
+          timezone={timezone}
+          boardDate={date}
+          onClose={closePanel}
+          onChanged={refresh}
+          revision={openJobRevision}
+        />
       ) : null}
     </div>
   );

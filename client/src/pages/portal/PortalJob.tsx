@@ -16,7 +16,37 @@ import { useApi } from "../../lib/useApi";
 import { useDemoMinutes } from "../../lib/useDemoClock";
 import { useLive } from "../../lib/useLive";
 
-const STEPS = ["Booked", "En route", "On site", "Done"] as const;
+// The four dots along the top, in the customer's words. The board says "en
+// route" and "on site"; the person waiting at home says neither.
+const STEPS = ["Booked", "On the way", "Started", "Finished"] as const;
+
+/**
+ * What each step is called on the customer's page.
+ *
+ * The board says "en route" and "on site" because that is what a dispatcher
+ * says. Nobody waiting at home says either, so the same events are written
+ * out here in the words the person reading them would use, with the
+ * technician's name where there is one.
+ */
+function happened(status: JobStatus, firstName: string | null): string | null {
+  switch (status) {
+    case "scheduled":
+      return "Visit booked";
+    case "en_route":
+      return firstName ? `${firstName} set off` : "Your technician set off";
+    case "on_site":
+      return firstName ? `${firstName} arrived` : "Your technician arrived";
+    case "awaiting_approval":
+      return "Quote sent for your approval";
+    case "parts_on_order":
+      return "Waiting on a part";
+    case "done":
+      return "Work completed";
+    default:
+      // "unscheduled" and "cancelled" are not moments in a visit.
+      return null;
+  }
+}
 
 /** Where on the four-step track each status sits. */
 const STEP_OF: Record<JobStatus, number> = {
@@ -82,6 +112,7 @@ export default function PortalJob() {
       <StatusCard view={view} demoMinutes={demoMinutes} />
       {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
       {view.photos.length > 0 ? <PhotosCard photos={view.photos} token={token} /> : null}
+      <VisitRecord view={view} />
       {view.quote ? (
         <QuoteCard
           quote={view.quote}
@@ -115,16 +146,21 @@ function StatusCard({ view, demoMinutes }: { view: PortalView; demoMinutes: numb
   const minutesOut =
     demoMinutes !== null && job.scheduledStart ? Math.round(minutesOfDay(job.scheduledStart, tz) - demoMinutes) : null;
 
+  // A finished visit should say when, not repeat the job title back.
+  const finishedAt = job.timeline.findLast((entry) => entry.status === "done")?.at ?? null;
+
   const detail =
-    job.status === "en_route"
-      ? minutesOut !== null && minutesOut > 0
-        ? `About ${minutesOut} ${minutesOut === 1 ? "minute" : "minutes"} out · on the way to ${view.address.street}`
-        : minutesOut !== null
-          ? `Arriving any minute now · ${view.address.street}`
-          : `On the way to ${view.address.street}`
-      : job.scheduledStart && job.scheduledEnd && job.status !== "done"
-        ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} - ${clockWithPeriod(job.scheduledEnd, tz)}`
-        : job.title;
+    job.status === "done" && finishedAt
+      ? `Finished at ${clockWithPeriod(finishedAt, tz)}`
+      : job.status === "en_route"
+        ? minutesOut !== null && minutesOut > 0
+          ? `About ${minutesOut} ${minutesOut === 1 ? "minute" : "minutes"} out · on the way to ${view.address.street}`
+          : minutesOut !== null
+            ? `Arriving any minute now · ${view.address.street}`
+            : `On the way to ${view.address.street}`
+        : job.scheduledStart && job.scheduledEnd && job.status !== "done"
+          ? `Arrival window ${clockWithPeriod(job.scheduledStart, tz)} - ${clockWithPeriod(job.scheduledEnd, tz)}`
+          : job.title;
 
   const eyebrow =
     job.status === "en_route" ? "On the way" : job.status === "parts_on_order" ? "Waiting on parts" : STEPS[step];
@@ -221,6 +257,46 @@ function PhotosCard({ photos, token }: { photos: PortalView["photos"]; token: st
             </li>
           ))}
         </ul>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * What happened, and when.
+ *
+ * The four dots above say roughly where the visit has got to; this says it
+ * exactly, which is what somebody wants when they are asking themselves
+ * whether anyone actually turned up this morning. The server has been sending
+ * this timeline since the job first moved - it is the same record the office
+ * sees, written out differently.
+ */
+function VisitRecord({ view }: { view: PortalView }) {
+  const firstName = view.technician?.name.split(" ")[0] ?? null;
+  const entries = view.job.timeline
+    .map((entry) => ({ ...entry, label: happened(entry.status, firstName) }))
+    .filter((entry): entry is typeof entry & { label: string } => entry.label !== null);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <Card className="rounded-2xl p-[18px]">
+      <div className="flex flex-col gap-3">
+        <span className="font-mono text-[10.5px] font-medium tracking-[0.1em] text-ink-faint uppercase">
+          What happened
+        </span>
+        <ol className="flex flex-col gap-2.5">
+          {entries.map((entry, index) => (
+            <li key={index} className="flex items-baseline justify-between gap-4">
+              <span className={`text-[13.5px] ${index === entries.length - 1 ? "text-ink" : "text-ink-muted"}`}>
+                {entry.label}
+              </span>
+              <span className="font-mono text-[11.5px] whitespace-nowrap text-ink-faint">
+                {clockWithPeriod(entry.at, view.company.timezone)}
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
     </Card>
   );
