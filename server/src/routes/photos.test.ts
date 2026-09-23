@@ -30,8 +30,8 @@ const jobNumbered = async (number: number) => {
   return (await Job.findOne({ companyId: company._id, number }).lean())!;
 };
 
-/** A real PNG, made the same way the demo makes them. */
-const somePng = () => demoPhotos()[0]!.bytes;
+/** A real photograph, the same files the demo is seeded from. */
+const someJpeg = () => demoPhotos()[0]!.bytes;
 
 describe("photos of the work", () => {
   let mongo: MongoMemoryServer;
@@ -57,10 +57,7 @@ describe("photos of the work", () => {
       const view = await request(app).get(`/api/portal/${link}`);
 
       expect(view.status).toBe(200);
-      expect(view.body.photos.map((photo: { caption: string }) => photo.caption)).toEqual([
-        "Cracked hot-surface ignitor",
-        "Furnace model plate",
-      ]);
+      expect(view.body.photos.map((photo: { caption: string }) => photo.caption)).toEqual(["Model and serial from the unit"]);
     });
 
     it("never sends the bytes with the page, only a way to fetch each one", async () => {
@@ -78,9 +75,9 @@ describe("photos of the work", () => {
       const image = await request(app).get(`/api/portal/${link}/photos/${first!.id}`);
 
       expect(image.status).toBe(200);
-      expect(image.headers["content-type"]).toBe("image/png");
+      expect(image.headers["content-type"]).toBe("image/jpeg");
       expect(image.headers["cache-control"]).toContain("private");
-      expect(image.body.subarray(1, 4).toString("ascii")).toBe("PNG");
+      expect(image.body.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))).toBe(true);
     });
 
     it("refuses the office-only photo even though the link is a good one", async () => {
@@ -109,11 +106,11 @@ describe("photos of the work", () => {
       const upload = await request(app)
         .post(`/api/jobs/${job._id.toString()}/photos?caption=New%20filter%20fitted`)
         .set("Cookie", cookie)
-        .set("Content-Type", "image/png")
-        .send(somePng());
+        .set("Content-Type", "image/jpeg")
+        .send(someJpeg());
 
       expect(upload.status).toBe(201);
-      expect(upload.body).toMatchObject({ caption: "New filter fitted", contentType: "image/png" });
+      expect(upload.body).toMatchObject({ caption: "New filter fitted", contentType: "image/jpeg" });
       expect(upload.body).not.toHaveProperty("data");
 
       const listed = await request(app).get(`/api/jobs/${job._id.toString()}/photos`).set("Cookie", cookie);
@@ -127,8 +124,8 @@ describe("photos of the work", () => {
       await request(app)
         .post(`/api/jobs/${job._id.toString()}/photos?caption=Meter&share=false`)
         .set("Cookie", cookie)
-        .set("Content-Type", "image/png")
-        .send(somePng());
+        .set("Content-Type", "image/jpeg")
+        .send(someJpeg());
 
       const view = await request(app).get(`/api/portal/${job.portalToken}`);
       expect(view.body.photos).toEqual([]);
@@ -141,7 +138,7 @@ describe("photos of the work", () => {
       const upload = await request(app)
         .post(`/api/jobs/${job._id.toString()}/photos`)
         .set("Cookie", cookie)
-        .set("Content-Type", "image/png")
+        .set("Content-Type", "image/jpeg")
         .send(Buffer.from("<html><script>alert(1)</script></html>", "utf8"));
 
       expect(upload.status).toBe(400);
@@ -164,8 +161,8 @@ describe("photos of the work", () => {
       const upload = await request(app)
         .post(`/api/jobs/${job._id.toString()}/photos`)
         .set("Cookie", cookie)
-        .set("Content-Type", "image/png")
-        .send(somePng());
+        .set("Content-Type", "image/jpeg")
+        .send(someJpeg());
 
       expect(upload.status).toBe(409);
     });
@@ -188,7 +185,7 @@ describe("photos of the work", () => {
 
       const answer = await request(app).get(`/api/photos/${photo._id.toString()}`).set("Cookie", cookie);
       expect(answer.status).toBe(200);
-      expect(answer.headers["content-type"]).toBe("image/png");
+      expect(answer.headers["content-type"]).toBe("image/jpeg");
     });
 
     it("wants a session at all", async () => {

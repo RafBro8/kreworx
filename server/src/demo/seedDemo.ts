@@ -14,7 +14,7 @@ import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
  * jobs). A running demo built by an older version is rebuilt on the next
  * start rather than waiting for the date to change.
  */
-export const DEMO_SEED_VERSION = 3;
+export const DEMO_SEED_VERSION = 4;
 
 /**
  * Writes the Northline demo into the database.
@@ -77,8 +77,8 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
   await Quote.insertMany(plan.quotes.map((quote) => ({ ...quote, companyId })));
   await Invoice.insertMany(plan.invoices.map((invoice) => ({ ...invoice, companyId })));
 
-  // Photographs of the work, drawn rather than checked in. They hang off job
-  // numbers, so a job the script no longer has simply gets none.
+  // Photographs of the work. They hang off job numbers, so a job the script
+  // no longer has simply gets none.
   const jobsByNumber = new Map(savedJobs.map((job) => [job.number, job]));
   const leadOf = new Map(plan.jobs.map((job) => [job.number, job.crew ? CREWS.find((crew) => crew.key === job.crew)?.lead : undefined]));
   await Photo.insertMany(
@@ -90,7 +90,7 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
           companyId,
           jobId: job._id,
           data: photo.bytes,
-          contentType: "image/png",
+          contentType: photo.contentType,
           bytes: photo.bytes.length,
           caption: photo.caption,
           sharedWithCustomer: photo.sharedWithCustomer,

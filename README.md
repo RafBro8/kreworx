@@ -47,9 +47,11 @@ and cooling contractor in Mokena, Illinois: the owner, the dispatcher, a
 technician, or a customer holding the link to her job. There is no sign-up, and
 the account menu switches seats at any time.
 
-The photographs are drawn rather than checked in: a few hundred lines of pixel
-maths and a PNG encoder, so the repository carries no binaries and every
-rebuild produces the same pictures.
+The photographs are real equipment, from Wikimedia Commons under licences that
+permit commercial use, and each sits on a job it genuinely fits: the rooftop
+unit belongs to Brightway Dental, who have two of them.
+[`server/src/demo/photos/CREDITS.md`](server/src/demo/photos/CREDITS.md) says
+where each came from.
 
 The business is generated from a script in [`server/src/demo`](server/src/demo)
 that matches the design artboards: four crews, eleven jobs today with four done
