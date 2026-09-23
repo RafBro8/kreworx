@@ -109,6 +109,50 @@ export type OwnerSummary = {
   invoicedThisWeekCents: number;
 };
 
+export type CustomerRow = {
+  id: string;
+  name: string;
+  kind: "residential" | "commercial";
+  phone: string | null;
+  email: string | null;
+  /** One town for most; a list for the few with property in several. */
+  towns: string[];
+  properties: number;
+  jobs: number;
+  lastVisit: string | null;
+  billedCents: number;
+};
+
+export type CustomerDetail = {
+  id: string;
+  name: string;
+  kind: "residential" | "commercial";
+  phone: string | null;
+  email: string | null;
+  properties: {
+    id: string;
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    accessNotes: string | null;
+    equipment: { kind: string; make: string | null; model: string | null; installedYear: number | null }[];
+  }[];
+  jobs: {
+    id: string;
+    number: number;
+    title: string;
+    status: JobStatus;
+    scheduledStart: string | null;
+    requestedAt: string;
+    street: string | null;
+    crew: { name: string; van: string } | null;
+    invoice: { number: number; status: string; totalCents: number } | null;
+    quote: { number: number; status: string; totalCents: number } | null;
+  }[];
+  billedCents: number;
+};
+
 /** A photo, without the photo: enough to show a caption and fetch the bytes. */
 export type PhotoSummary = {
   id: string;
@@ -202,6 +246,10 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
+export const getCustomers = (q?: string) =>
+  api<CustomerRow[]>(`/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+export const getCustomer = (id: string) => api<CustomerDetail>(`/customers/${id}`);
+
 export const getJobPhotos = (jobId: string) => api<JobPhoto[]>(`/jobs/${jobId}/photos`);
 export const deletePhoto = (id: string) => api<void>(`/photos/${id}`, { method: "DELETE" });
 

@@ -10,11 +10,12 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1-3 are done and stage 4 has started: both
-> deploys are live, the app runs on a seeded demo business with real sign-in and
-> roles, the board and the live map are working, and a customer can now approve
-> their quote, see the photos of the work and read the record of the visit from
-> the link. Screens still to come say on the page what they will hold.
+> **Status: in build.** Stages 1-4 are done: both deploys are live, the app
+> runs on a seeded demo business with real sign-in and roles, the board and the
+> live map are working, the office has the customer book, and a customer can
+> approve their quote, see the photos of the work and read the record of the
+> visit from their link. Screens still to come say on the page what they will
+> hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -76,6 +77,11 @@ in Chicago.
 - **Sessions.** A signed token in an httpOnly cookie. The client calls `/api` on
   its own domain and Vercel forwards it to Render, so the cookie is first-party
   and survives Safari blocking third-party cookies.
+- **The customer book belongs to the office.** A technician sees the jobs on
+  their own crew and the notes attached to them, which is what they need at the
+  door. Browsing every customer a business has ever had - phone numbers, gate
+  codes, what they have spent - is a different thing, and the server refuses it
+  to anyone but an owner or a dispatcher.
 - **Customers have no accounts.** Each job has a long random link, and the portal
   response is built from an allow-list so nothing internal can leak through it.
   The one thing they can change is their own quote: the link identifies which

@@ -27,7 +27,10 @@ const NAV: { section: Section; to: string; label: string; Icon: typeof CalendarI
 
 function titleFor(pathname: string, role: Role): string {
   if (pathname === "/dispatch" && role === "technician") return "My day";
-  return NAV.find((item) => item.to === pathname)?.label ?? "Kreworx";
+  // A page below a section - one customer, say - still belongs to that section,
+  // so the header keeps saying where you are rather than falling back to the
+  // company name.
+  return NAV.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))?.label ?? "Kreworx";
 }
 
 export default function OpsLayout() {

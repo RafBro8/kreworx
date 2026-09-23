@@ -7,6 +7,7 @@ import { FullPageNote, RequireAuth, RequireSection } from "./auth/guards";
 import OpsLayout from "./layouts/OpsLayout";
 import PortalLayout from "./layouts/PortalLayout";
 import NotFound from "./pages/NotFound";
+import CustomerDetail from "./pages/ops/CustomerDetail";
 import Customers from "./pages/ops/Customers";
 import Dispatch from "./pages/ops/Dispatch";
 import Money from "./pages/ops/Money";
@@ -50,6 +51,7 @@ export default function App() {
           }
         />
         <Route path="customers" element={<RequireSection section="customers"><Customers /></RequireSection>} />
+        <Route path="customers/:id" element={<RequireSection section="customers"><CustomerDetail /></RequireSection>} />
         <Route path="money" element={<RequireSection section="money"><Money /></RequireSection>} />
         <Route path="owner" element={<RequireSection section="owner"><Owner /></RequireSection>} />
       </Route>
