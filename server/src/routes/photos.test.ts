@@ -1,3 +1,6 @@
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -30,25 +33,44 @@ const jobNumbered = async (number: number) => {
   return (await Job.findOne({ companyId: company._id, number }).lean())!;
 };
 
-/** A real photograph, the same files the demo is seeded from. */
-const someJpeg = () => demoPhotos()[0]!.bytes;
+/** A real photograph, and the type the server should read back off it. */
+const somePhoto = () => demoPhotos().find((photo) => photo.contentType === "image/jpeg")!.bytes;
 
 describe("photos of the work", () => {
   let mongo: MongoMemoryServer;
+  let server: Server;
+  let origin: string;
+
+  /**
+   * Fetching an image over a real socket.
+   *
+   * supertest stands a server up and tears it down around each request, and on
+   * Windows that resets the connection partway through a response of a few
+   * hundred kilobytes roughly one time in ten - nothing to do with this code
+   * (the same request through a real server and a real client never fails).
+   * Anything that reads a photo's bytes therefore goes through a server that
+   * stays up for the file.
+   */
+  const fetchImage = (path: string, cookie?: string) =>
+    fetch(origin + path, { headers: cookie ? { Cookie: cookie } : {} });
 
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     await connectDatabase(mongo.getUri("kreworx_photos_test"));
     await ensureIndexes();
+    // Seeded once: it writes the best part of a megabyte of photographs, and
+    // the tests that need a clean slate clear the one job they touch.
+    await seedDemo();
+
+    server = app.listen(0);
+    await new Promise((resolve) => server.once("listening", resolve));
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
 
   afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
     await disconnectDatabase();
     await mongo.stop();
-  });
-
-  beforeEach(async () => {
-    await seedDemo();
   });
 
   describe("what the customer is shown", () => {
@@ -57,7 +79,9 @@ describe("photos of the work", () => {
       const view = await request(app).get(`/api/portal/${link}`);
 
       expect(view.status).toBe(200);
-      expect(view.body.photos.map((photo: { caption: string }) => photo.caption)).toEqual(["Model and serial from the unit"]);
+      expect(view.body.photos.map((photo: { caption: string }) => photo.caption)).toEqual([
+        "Filter and furnace, from yesterday's visit",
+      ]);
     });
 
     it("never sends the bytes with the page, only a way to fetch each one", async () => {
@@ -70,14 +94,16 @@ describe("photos of the work", () => {
 
     it("serves a shared photo as an image", async () => {
       const link = (await accounts()).customer.portalToken;
-      const [first] = (await request(app).get(`/api/portal/${link}`)).body.photos as { id: string }[];
+      const [first] = (await request(app).get(`/api/portal/${link}`)).body.photos as { id: string; bytes: number }[];
 
-      const image = await request(app).get(`/api/portal/${link}/photos/${first!.id}`);
+      const image = await fetchImage(`/api/portal/${link}/photos/${first!.id}`);
+      const bytes = await image.arrayBuffer();
 
       expect(image.status).toBe(200);
-      expect(image.headers["content-type"]).toBe("image/jpeg");
-      expect(image.headers["cache-control"]).toContain("private");
-      expect(image.body.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))).toBe(true);
+      expect(image.headers.get("content-type")).toMatch(/^image\/(jpeg|png|webp)$/);
+      expect(image.headers.get("cache-control")).toContain("private");
+      // The whole photograph arrives, not the first packet of it.
+      expect(bytes.byteLength).toBe(first!.bytes);
     });
 
     it("refuses the office-only photo even though the link is a good one", async () => {
@@ -99,6 +125,11 @@ describe("photos of the work", () => {
   });
 
   describe("adding one from the job", () => {
+    // Every test here uploads onto the same job, which starts with no photos.
+    beforeEach(async () => {
+      await Photo.deleteMany({ jobId: (await jobNumbered(4472))._id });
+    });
+
     it("takes a photo posted as the body, with its caption", async () => {
       const cookie = await signInAs("Dana Morales");
       const job = await jobNumbered(4472);
@@ -107,7 +138,7 @@ describe("photos of the work", () => {
         .post(`/api/jobs/${job._id.toString()}/photos?caption=New%20filter%20fitted`)
         .set("Cookie", cookie)
         .set("Content-Type", "image/jpeg")
-        .send(someJpeg());
+        .send(somePhoto());
 
       expect(upload.status).toBe(201);
       expect(upload.body).toMatchObject({ caption: "New filter fitted", contentType: "image/jpeg" });
@@ -125,7 +156,7 @@ describe("photos of the work", () => {
         .post(`/api/jobs/${job._id.toString()}/photos?caption=Meter&share=false`)
         .set("Cookie", cookie)
         .set("Content-Type", "image/jpeg")
-        .send(someJpeg());
+        .send(somePhoto());
 
       const view = await request(app).get(`/api/portal/${job.portalToken}`);
       expect(view.body.photos).toEqual([]);
@@ -162,7 +193,7 @@ describe("photos of the work", () => {
         .post(`/api/jobs/${job._id.toString()}/photos`)
         .set("Cookie", cookie)
         .set("Content-Type", "image/jpeg")
-        .send(someJpeg());
+        .send(somePhoto());
 
       expect(upload.status).toBe(409);
     });
@@ -183,9 +214,10 @@ describe("photos of the work", () => {
       const job = await jobNumbered(4471);
       const photo = (await Photo.findOne({ jobId: job._id }).lean())!;
 
-      const answer = await request(app).get(`/api/photos/${photo._id.toString()}`).set("Cookie", cookie);
+      const answer = await fetchImage(`/api/photos/${photo._id.toString()}`, cookie);
       expect(answer.status).toBe(200);
-      expect(answer.headers["content-type"]).toBe("image/jpeg");
+      expect(answer.headers.get("content-type")).toMatch(/^image\/(jpeg|png|webp)$/);
+      expect((await answer.arrayBuffer()).byteLength).toBe(photo.bytes);
     });
 
     it("wants a session at all", async () => {

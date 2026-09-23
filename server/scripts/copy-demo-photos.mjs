@@ -1,4 +1,4 @@
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const from = join(here, "..", "src", "demo", "photos");
 const to = join(here, "..", "dist", "demo", "photos");
 
+// Cleared first: copying over the top would leave a photograph that has since
+// been dropped from the demo sitting in the build.
+await rm(to, { recursive: true, force: true });
 await mkdir(to, { recursive: true });
 await cp(from, to, { recursive: true });
 
