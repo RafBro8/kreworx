@@ -11,6 +11,7 @@ import CustomerDetail from "./pages/ops/CustomerDetail";
 import Customers from "./pages/ops/Customers";
 import Dispatch from "./pages/ops/Dispatch";
 import Money from "./pages/ops/Money";
+import MoneyDocument from "./pages/ops/MoneyDocument";
 import Owner from "./pages/ops/Owner";
 import PortalHome from "./pages/portal/PortalHome";
 import PortalJob from "./pages/portal/PortalJob";
@@ -53,6 +54,8 @@ export default function App() {
         <Route path="customers" element={<RequireSection section="customers"><Customers /></RequireSection>} />
         <Route path="customers/:id" element={<RequireSection section="customers"><CustomerDetail /></RequireSection>} />
         <Route path="money" element={<RequireSection section="money"><Money /></RequireSection>} />
+        <Route path="money/quotes/:id" element={<RequireSection section="money"><MoneyDocument kind="quote" /></RequireSection>} />
+        <Route path="money/invoices/:id" element={<RequireSection section="money"><MoneyDocument kind="invoice" /></RequireSection>} />
         <Route path="owner" element={<RequireSection section="owner"><Owner /></RequireSection>} />
       </Route>
 

@@ -10,12 +10,12 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1-4 are done: both deploys are live, the app
-> runs on a seeded demo business with real sign-in and roles, the board and the
-> live map are working, the office has the customer book, and a customer can
-> approve their quote, see the photos of the work and read the record of the
-> visit from their link. Screens still to come say on the page what they will
-> hold.
+> **Status: in build.** Stages 1-4 are done and stage 5 has started: both
+> deploys are live, the app runs on a seeded demo business with real sign-in and
+> roles, the board and the live map are working, the office has the customer
+> book and writes its own quotes and invoices, and a customer can approve their
+> quote, see the photos of the work and read the record of the visit from their
+> link. Screens still to come say on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -98,6 +98,13 @@ in Chicago.
   customer's or the office's - the portal query filters on that, so a picture of
   the meter cupboard cannot reach the person holding the link.
 - **Money** is whole cents, totalled by one function everywhere it is summed.
+  Amounts are typed in dollars, because that is what somebody says out loud, and
+  converted to cents once at the edge - so nothing downstream ever sees a
+  fraction of a cent.
+- **Paperwork that has left the building cannot be quietly changed.** A quote is
+  editable while it is a draft and frozen the moment it is sent; an invoice is
+  frozen once it is settled. A quote may start blank, because writing one begins
+  with an empty page, but an empty one cannot be sent.
 - **No double-booking.** Moving a job checks the van's day and saves inside one
   transaction that also writes to the van, so two dispatchers grabbing the same
   slot at once cannot both win. A test holds two bookings between check and
@@ -131,6 +138,7 @@ git clone https://github.com/RafBro8/kreworx.git
 cd kreworx
 
 docker compose up -d                     # MongoDB on port 27030
+                                         # no Docker? npm --prefix server run db:temp
 
 cd server && npm install
 cp .env.example .env

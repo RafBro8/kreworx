@@ -5,6 +5,7 @@ import type { Types } from "mongoose";
 import { env } from "../config/env";
 import { dateIn } from "../lib/dates";
 import { Company, Counter, Crew, Customer, Invoice, Job, Photo, Property, Quote, User } from "../models";
+import type { CounterKey } from "../models/Counter";
 import { buildDemo } from "./buildDemo";
 import { demoPhotos } from "./photos";
 import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
@@ -100,9 +101,19 @@ export async function seedDemo(now: Date = new Date()): Promise<{ companyId: Typ
     }),
   );
 
-  // New jobs created through the app pick up numbering after the seeded ones.
-  const highest = Math.max(...plan.jobs.map((job) => job.number));
-  await Counter.updateOne({ companyId, key: "job" }, { $set: { seq: highest } }, { upsert: true });
+  // Documents created through the app pick up numbering after the seeded ones.
+  // The demo gives a quote the same number as its job, which reads well on a
+  // page; a real second quote on that job would collide, so every kind counts
+  // on from the highest the script used.
+  const highestOf = (numbers: number[]) => (numbers.length > 0 ? Math.max(...numbers) : 0);
+  const counters: [CounterKey, number][] = [
+    ["job", highestOf(plan.jobs.map((job) => job.number))],
+    ["quote", highestOf(plan.quotes.map((quote) => quote.number))],
+    ["invoice", highestOf(plan.invoices.map((invoice) => invoice.number))],
+  ];
+  for (const [key, seq] of counters) {
+    await Counter.updateOne({ companyId, key }, { $set: { seq } }, { upsert: true });
+  }
 
   await Company.updateOne({ _id: companyId }, { $set: { demoSeededFor: plan.today, demoSeedVersion: DEMO_SEED_VERSION, demoCycleStartedAt: now } });
 

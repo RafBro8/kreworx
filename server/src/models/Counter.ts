@@ -10,11 +10,14 @@ counterSchema.index({ companyId: 1, key: 1 }, { unique: true });
 
 export const Counter = model("Counter", counterSchema);
 
+/** Each kind of document counts on its own, the way a paper book would. */
+export type CounterKey = "job" | "quote" | "invoice";
+
 /**
- * The next job number for a company. A single atomic $inc, so two
- * dispatchers creating jobs at the same moment are never handed the same one.
+ * The next number of its kind for a company. A single atomic $inc, so two
+ * dispatchers writing a quote at the same moment are never handed the same one.
  */
-export async function nextNumber(companyId: Types.ObjectId, key: "job"): Promise<number> {
+export async function nextNumber(companyId: Types.ObjectId, key: CounterKey): Promise<number> {
   const counter = await Counter.findOneAndUpdate(
     { companyId, key },
     { $inc: { seq: 1 } },

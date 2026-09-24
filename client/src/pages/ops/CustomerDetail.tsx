@@ -124,7 +124,7 @@ export default function CustomerDetail() {
                     <span className="font-mono text-[12px] whitespace-nowrap text-ink-faint">
                       {shortDate(job.scheduledStart ?? job.requestedAt, tz)}
                     </span>
-                    <span className="ml-auto w-24 text-right font-mono text-[12.5px] sm:ml-0">
+                    <span className="ml-auto shrink-0 text-right font-mono tabular-nums text-[12.5px] sm:ml-0 sm:w-24">
                       {job.invoice ? money(job.invoice.totalCents) : job.quote ? `${money(job.quote.totalCents)} quoted` : ""}
                     </span>
                   </span>

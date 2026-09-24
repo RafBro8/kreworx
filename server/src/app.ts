@@ -11,6 +11,7 @@ import authRoutes from "./routes/auth.routes";
 import customerRoutes from "./routes/customers.routes";
 import demoRoutes from "./routes/demo.routes";
 import healthRoutes from "./routes/health.routes";
+import moneyRoutes from "./routes/money.routes";
 import ownerRoutes from "./routes/owner.routes";
 import photoRoutes from "./routes/photos.routes";
 import portalRoutes from "./routes/portal.routes";
@@ -48,6 +49,7 @@ export function createApp(): Express {
     scheduleRoutes,
     photoRoutes,
     customerRoutes,
+    moneyRoutes,
     ownerRoutes,
     demoRoutes,
     realtimeRoutes,

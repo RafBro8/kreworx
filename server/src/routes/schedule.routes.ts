@@ -183,8 +183,8 @@ router.get("/jobs/:id", async (req, res) => {
         }
       : null,
     timeline: job.timeline.map((entry) => ({ status: entry.status, at: entry.at })),
-    quote: quote ? { number: quote.number, status: quote.status, totalCents: totalCents(quote.lineItems) } : null,
-    invoice: invoice ? { number: invoice.number, status: invoice.status, totalCents: totalCents(invoice.lineItems) } : null,
+    quote: quote ? { id: quote._id.toString(), number: quote.number, status: quote.status, totalCents: totalCents(quote.lineItems) } : null,
+    invoice: invoice ? { id: invoice._id.toString(), number: invoice.number, status: invoice.status, totalCents: totalCents(invoice.lineItems) } : null,
     // The office can open exactly what the customer sees; a technician has no need to.
     portalToken: office ? job.portalToken : null,
     actions: {

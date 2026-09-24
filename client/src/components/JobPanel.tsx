@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import {
   changeJobStatus,
+  createInvoice,
+  createQuote,
   getJob,
   scheduleJob,
   unscheduleJob,
@@ -10,6 +12,7 @@ import {
   type JobDetail,
   type JobStatus,
 } from "../lib/api";
+import { emptyLine } from "../lib/lineItems";
 import {
   clockWithPeriod,
   dateInZone,
@@ -21,6 +24,7 @@ import {
   zonedIso,
 } from "../lib/format";
 import { useApi } from "../lib/useApi";
+import { useMe } from "../auth/context";
 import { PhoneIcon } from "./icons";
 import JobPhotos from "./JobPhotos";
 import { Eyebrow, StatusPill } from "./ui";
@@ -122,6 +126,10 @@ export default function JobPanel({ jobId, crews, timezone, boardDate, onClose, o
 }
 
 function JobBody({ job, crews, timezone, boardDate, onChanged }: { job: JobDetail; crews: Crew[]; timezone: string; boardDate: string; onChanged: () => void }) {
+  const me = useMe();
+  // Only the office writes the money; a technician sees whatever there is.
+  const office = me.user.role === "owner" || me.user.role === "dispatcher";
+
   return (
     <div className="flex flex-col gap-6 px-6 py-5">
       {job.actions.statuses.length > 0 ? <StatusActions job={job} onChanged={onChanged} /> : null}
@@ -190,7 +198,21 @@ function JobBody({ job, crews, timezone, boardDate, onChanged }: { job: JobDetai
         <JobPhotos jobId={job.id} />
       </Section>
 
-      {job.quote || job.invoice ? (
+      {office ? (
+        <Section label="Money">
+          {job.quote ? (
+            <Link to={`/money/quotes/${job.quote.id}`} className="block hover:text-accent">
+              <MoneyRow label={`Quote Q-${job.quote.number}`} status={job.quote.status} cents={job.quote.totalCents} />
+            </Link>
+          ) : null}
+          {job.invoice ? (
+            <Link to={`/money/invoices/${job.invoice.id}`} className="block hover:text-accent">
+              <MoneyRow label={`Invoice INV-${job.invoice.number}`} status={job.invoice.status} cents={job.invoice.totalCents} />
+            </Link>
+          ) : null}
+          <MoneyActions job={job} />
+        </Section>
+      ) : job.quote || job.invoice ? (
         <Section label="Money">
           {job.quote ? <MoneyRow label={`Quote Q-${job.quote.number}`} status={job.quote.status} cents={job.quote.totalCents} /> : null}
           {job.invoice ? <MoneyRow label={`Invoice INV-${job.invoice.number}`} status={job.invoice.status} cents={job.invoice.totalCents} /> : null}
@@ -388,6 +410,82 @@ function ScheduleForm({ job, crews, timezone, boardDate, onChanged }: { job: Job
         ) : null}
       </div>
     </form>
+  );
+}
+
+/**
+ * Starting the paperwork from the job it belongs to.
+ *
+ * A new quote opens straight into its editor with one empty line, because
+ * writing it is the point - a list of drafts to go and find later is not. An
+ * invoice with an approved quote behind it needs no lines at all: the server
+ * bills what the customer agreed to.
+ */
+function MoneyActions({ job }: { job: JobDetail }) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const start = async (what: "quote" | "invoice") => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const created =
+        what === "quote"
+          ? // A blank page: the editor opens with a line to type into.
+            await createQuote(job.id, { lineItems: [] })
+          : await createInvoice(
+              job.id,
+              // With an approved quote behind it the server bills that. Without
+              // one, it starts with the job itself as the first line, priced at
+              // nothing until somebody says otherwise.
+              job.quote?.status === "approved"
+                ? undefined
+                : { lineItems: [{ ...emptyLine(), kind: "fee", description: job.title }] },
+            );
+      navigate(what === "quote" ? `/money/quotes/${created.id}` : `/money/invoices/${created.id}`);
+    } catch (error) {
+      setFailed(error instanceof Error ? error.message : "That did not work");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const needsQuote = !job.quote || job.quote.status === "declined";
+  const needsInvoice = !job.invoice;
+
+  if (!needsQuote && !needsInvoice) return null;
+
+  return (
+    <div className="flex flex-col gap-2 pt-1">
+      <div className="flex flex-wrap gap-2">
+        {needsQuote ? (
+          <button
+            type="button"
+            onClick={() => start("quote")}
+            disabled={busy}
+            className="h-9 rounded-control border border-border bg-raised px-3 text-[13px] disabled:opacity-60"
+          >
+            Write a quote
+          </button>
+        ) : null}
+        {needsInvoice ? (
+          <button
+            type="button"
+            onClick={() => start("invoice")}
+            disabled={busy}
+            className="h-9 rounded-control border border-border bg-raised px-3 text-[13px] disabled:opacity-60"
+          >
+            {job.quote?.status === "approved" ? "Invoice the approved quote" : "Write an invoice"}
+          </button>
+        ) : null}
+      </div>
+      {failed ? (
+        <p role="alert" className="text-[12px] text-blocked">
+          {failed}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

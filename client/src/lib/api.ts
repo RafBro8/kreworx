@@ -109,6 +109,59 @@ export type OwnerSummary = {
   invoicedThisWeekCents: number;
 };
 
+export const LINE_KINDS = ["part", "labour", "fee"] as const;
+export type LineKind = (typeof LINE_KINDS)[number];
+
+export type LineItemInput = {
+  kind: LineKind;
+  description: string;
+  detail?: string;
+  quantity: number;
+  unitPriceCents: number;
+  waived?: boolean;
+};
+
+/** A line as the server stores it: detail and waived are always present. */
+export type StoredLineItem = {
+  kind: LineKind;
+  description: string;
+  detail: string | null;
+  quantity: number;
+  unitPriceCents: number;
+  waived: boolean;
+};
+
+export type MoneyDocument = {
+  id: string;
+  number: number;
+  jobId: string;
+  status: string;
+  findings: string | null;
+  lineItems: StoredLineItem[];
+  totalCents: number;
+  sentAt: string | null;
+  respondedAt: string | null;
+  validUntil: string | null;
+  issuedAt: string | null;
+  dueAt: string | null;
+  paidAt: string | null;
+};
+
+/** A document on the money page, with enough context to read the row. */
+export type MoneyRow = MoneyDocument & {
+  job: { number: number; title: string } | null;
+  customer: string | null;
+};
+
+/** One document in its editor. */
+export type MoneyDetail = MoneyDocument & {
+  job: { id: string; number: number; title: string } | null;
+  customer: string | null;
+  editable: boolean;
+};
+
+export type MoneyBook = { quotes: MoneyRow[]; invoices: MoneyRow[] };
+
 export type CustomerRow = {
   id: string;
   name: string;
@@ -226,8 +279,8 @@ export type JobDetail = {
     equipment: { kind: string; make: string; model: string; installedYear: number }[];
   } | null;
   timeline: { status: JobStatus; at: string }[];
-  quote: { number: number; status: string; totalCents: number } | null;
-  invoice: { number: number; status: string; totalCents: number } | null;
+  quote: { id: string; number: number; status: string; totalCents: number } | null;
+  invoice: { id: string; number: number; status: string; totalCents: number } | null;
   portalToken: string | null;
   actions: { statuses: JobStatus[]; reschedule: boolean; unschedule: boolean };
 };
@@ -246,6 +299,25 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
+export const getMoney = () => api<MoneyBook>("/money");
+export const getQuote = (id: string) => api<MoneyDetail>(`/quotes/${id}`);
+export const getInvoice = (id: string) => api<MoneyDetail>(`/invoices/${id}`);
+
+type DocumentBody = { findings?: string; lineItems: LineItemInput[] };
+
+export const createQuote = (jobId: string, body: DocumentBody) =>
+  api<MoneyDocument>(`/jobs/${jobId}/quote`, { method: "POST", body: JSON.stringify(body) });
+export const saveQuote = (id: string, body: DocumentBody) =>
+  api<void>(`/quotes/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+export const sendQuote = (id: string) => api<void>(`/quotes/${id}/send`, { method: "POST" });
+
+/** With no lines, the server bills the approved quote rather than a retyping. */
+export const createInvoice = (jobId: string, body?: DocumentBody) =>
+  api<MoneyDocument>(`/jobs/${jobId}/invoice`, { method: "POST", body: JSON.stringify(body ?? {}) });
+export const saveInvoice = (id: string, body: DocumentBody) =>
+  api<void>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+export const markInvoicePaid = (id: string) => api<void>(`/invoices/${id}/paid`, { method: "POST" });
+
 export const getCustomers = (q?: string) =>
   api<CustomerRow[]>(`/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`);
 export const getCustomer = (id: string) => api<CustomerDetail>(`/customers/${id}`);

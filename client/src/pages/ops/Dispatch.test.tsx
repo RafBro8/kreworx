@@ -86,7 +86,7 @@ function fakeServer(role: Role) {
         scheduledEnd: "2026-09-16T17:30:00Z",
         customer: { name: "Amara Osei", kind: "residential", phone: "(708) 555-0113", email: null },
         property: { street: "45 Linden Ave", city: "Mokena", state: "IL", zip: "60448", accessNotes: "Side gate code 4471. Dog is friendly.", equipment: [{ kind: "Gas furnace", make: "Goodman", model: "GMVC96", installedYear: 2013 }] },
-        quote: { number: 4471, status: "sent", totalCents: 37900 },
+        quote: { id: "q-4471", number: 4471, status: "sent", totalCents: 37900 },
         timeline: [{ status: "en_route", at: "2026-09-16T15:08:00Z" }],
         portalToken: role === "technician" ? null : "osei-token-000000000",
       }),
