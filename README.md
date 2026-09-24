@@ -10,13 +10,13 @@ map that shows where every van actually is, a phone app for the crew, and a link
 the customer opens to see when their technician will arrive and to approve the
 work with one tap.
 
-> **Status: in build.** Stages 1-4 are done and stage 5 has started: both
-> deploys are live, the app runs on a seeded demo business with real sign-in and
-> roles, the board and the live map are working, the office has the customer
-> book and writes its own quotes and invoices, and a customer can approve their
-> quote, download it as a PDF, see the photos of the work and read the record of
-> the visit from their link. Screens still to come say on the page what they
-> will hold.
+> **Status: in build.** Stages 1-5 are done: both deploys are live, the app
+> runs on a seeded demo business with real sign-in and roles, the board and the
+> live map are working, the office has the customer book and writes its own
+> quotes and invoices, and a customer can approve their quote, pay their
+> invoice by card, download either as a PDF, see the photos of the work and
+> read the record of the visit - all from one link. Screens still to come say
+> on the page what they will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -102,6 +102,20 @@ in Chicago.
   Amounts are typed in dollars, because that is what somebody says out loud, and
   converted to cents once at the edge - so nothing downstream ever sees a
   fraction of a cent.
+- **A payment is believed because Stripe signed it, not because a browser came
+  back.** Cards are taken through Stripe Checkout, so no card number reaches
+  this server or the client and there is no publishable key to manage. The
+  invoice is marked paid by the webhook alone - the success URL proves nothing,
+  since anybody can visit it - and that webhook verifies the signature over the
+  raw request body, which is why it is mounted ahead of the JSON parser.
+  Stripe retries until acknowledged and can deliver the same event twice, so
+  settling is guarded on the invoice not already being paid. A bank debit that
+  completes before the money clears is left alone until the later event says
+  otherwise.
+- **Payments are optional.** With no Stripe keys configured the portal never
+  offers to take one, `/api/health` reports `payments: false`, and everything
+  else behaves exactly as before - so this can be switched on long after the
+  rest is running.
 - **The PDF is drawn, not screenshotted.** A quote and an invoice print from
   the same figures the customer read on their phone, summed by the same
   function - the paper can never disagree with the page. It is generated with
@@ -196,6 +210,12 @@ showing the URL to anyone. Set `MONGODB_URI`, `JWT_SECRET` (any long random
 string), `DEMO_MODE=true`, `PUBLIC_API_URL` (this service's own URL, where browsers open
 their sockets) and `CLIENT_ORIGIN` in the dashboard.
 
+For card payments, add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from a
+Stripe sandbox, and point a Stripe webhook destination at
+`/api/stripe/webhook` listening for `checkout.session.completed` and
+`checkout.session.async_payment_succeeded`. Leave them out and the rest of the
+system runs unchanged.
+
 **Database → MongoDB Atlas.**
 
 Every deploy reports which commit is live:
@@ -220,7 +240,7 @@ server/   Express API - config, routes, middleware, realtime
 | 2 | Data model, roles, a seeded demo business and a role switcher |
 | 3 | The dispatch board and the live map |
 | 4 | The customer portal - live arrival, photos, one-tap approval |
-| 5 | Quotes and invoices, Stripe in test mode, PDF |
+| 5 | **Quotes and invoices** - written in the app, printed as PDFs, paid by card |
 | 6 | The crew's phone app - the day's stops, photos, notes |
 | 7 | The owner's dashboard |
 | 8 | Polish, end-to-end tests in CI |

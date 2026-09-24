@@ -236,6 +236,16 @@ export type PortalView = {
   };
   address: { street: string; city: string };
   photos: PhotoSummary[];
+  invoice: {
+    number: number;
+    status: string;
+    totalCents: number;
+    issuedAt: string | null;
+    dueAt: string | null;
+    paidAt: string | null;
+    /** False when settled, or when this deployment takes no card payments. */
+    payable: boolean;
+  } | null;
   technician: { name: string; title: string | null; years: number | null } | null;
   quote: {
     number: number;
@@ -349,6 +359,10 @@ export const uploadJobPhoto = (jobId: string, blob: Blob, options: { caption?: s
     headers: { "Content-Type": blob.type || "image/jpeg" },
   });
 };
+
+/** Starts a Stripe Checkout session and hands back where to send the browser. */
+export const payInvoice = (token: string) =>
+  api<{ url: string }>(`/portal/${encodeURIComponent(token)}/pay`, { method: "POST" });
 
 export const answerQuote = (token: string, decision: "approved" | "declined") =>
   api<void>(`/portal/${encodeURIComponent(token)}/quote`, { method: "POST", body: JSON.stringify({ decision }) });

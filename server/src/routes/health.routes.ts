@@ -59,6 +59,9 @@ router.get("/health", (_req, res) => {
     uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
     commit: env.commit?.slice(0, 7) ?? null,
     demoMode: env.demoMode,
+    // Whether this deploy can take a card. A boolean, never the keys - it is
+    // how you tell from outside that the Stripe variables actually arrived.
+    payments: Boolean(env.stripe.secretKey && env.stripe.webhookSecret),
     database: {
       connected: database.ready,
       // The database name is a useful check when several environments share a

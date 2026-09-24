@@ -44,4 +44,11 @@ export const env = {
     .filter(Boolean),
   // Render sets this on every deploy; it is how we confirm which build is live.
   commit: process.env.RENDER_GIT_COMMIT ?? null,
+  // Card payments. Absent, the portal simply does not offer to take one - the
+  // rest of the system works exactly as before, which is what lets this be
+  // configured after the fact rather than being a condition of booting.
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY ?? null,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? null,
+  },
 } as const;

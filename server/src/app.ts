@@ -17,6 +17,7 @@ import photoRoutes from "./routes/photos.routes";
 import portalRoutes from "./routes/portal.routes";
 import realtimeRoutes from "./routes/realtime.routes";
 import scheduleRoutes from "./routes/schedule.routes";
+import stripeRoutes from "./routes/stripe.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -31,6 +32,11 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
+  // Stripe signs the exact bytes it sent, so its webhook has to see the body
+  // before anything parses it. Mounted ahead of express.json for that reason
+  // alone; everything else below takes JSON as normal.
+  app.use("/api", stripeRoutes);
+
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
 

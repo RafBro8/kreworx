@@ -5,6 +5,8 @@ import { demoClockPayload } from "../demo/clock";
 import { ApiError } from "../lib/ApiError";
 import { Company, Crew, Customer, Photo, Property, Quote, User } from "../models";
 import { lineAmountCents, totalCents } from "../models/lineItems";
+import { env } from "../config/env";
+import { outstandingInvoice, startCheckout } from "../services/payments";
 import { sendPdf } from "../services/printing";
 import { answerQuote, jobFromToken, NO_SUCH_LINK } from "../services/quotes";
 import { describe as describePhoto, findPhoto, sendImage } from "./photos.routes";
@@ -27,7 +29,7 @@ router.get("/portal/:token", async (req, res) => {
 
   const job = await jobFromToken(req.params.token);
 
-  const [company, customer, property, crew, quote, photos] = await Promise.all([
+  const [company, customer, property, crew, quote, photos, invoice] = await Promise.all([
     Company.findById(job.companyId, { name: 1, phone: 1, timezone: 1, demoCycleStartedAt: 1 }).lean(),
     Customer.findById(job.customerId, { name: 1 }).lean(),
     Property.findById(job.propertyId, { street: 1, city: 1 }).lean(),
@@ -36,6 +38,7 @@ router.get("/portal/:token", async (req, res) => {
     // Only what the crew marked to share, and never the bytes: those come one
     // at a time from the route below, so the page loads before the pictures do.
     Photo.find({ jobId: job._id, sharedWithCustomer: { $ne: false } }, { data: 0 }).sort({ createdAt: 1 }).lean(),
+    outstandingInvoice(job._id),
   ]);
   if (!company || !customer || !property) throw ApiError.notFound(NO_SUCH_LINK);
 
@@ -65,6 +68,7 @@ router.get("/portal/:token", async (req, res) => {
           years: lead.startedYear ? new Date().getFullYear() - lead.startedYear : null,
         }
       : null,
+    invoice,
     quote: quote
       ? {
           number: quote.number,
@@ -114,6 +118,24 @@ router.get("/portal/:token/photos/:id", async (req, res) => {
   if (!photo.jobId.equals(job._id) || photo.sharedWithCustomer === false) throw ApiError.notFound("Photo not found");
 
   sendImage(res, photo);
+});
+
+/**
+ * Starting a card payment.
+ *
+ * The amount is never taken from the request - it comes from the stored
+ * invoice - and the pages Stripe returns to are built from the configured
+ * client origin rather than from a header, so no request can send a paying
+ * customer somewhere else afterwards.
+ */
+router.post("/portal/:token/pay", async (req, res) => {
+  privateResponse(res);
+
+  const origin = env.clientOrigins[0];
+  if (!origin) throw ApiError.notFound("This business is not set up to take card payments");
+
+  const url = await startCheckout(req.params.token, origin);
+  res.json({ url });
 });
 
 /**

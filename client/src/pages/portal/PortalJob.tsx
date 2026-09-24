@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 
 import { Card, Display } from "../../components/ui";
 import { PhoneIcon } from "../../components/icons";
@@ -7,6 +7,7 @@ import {
   answerQuote,
   ApiRequestError,
   getPortal,
+  payInvoice,
   portalPhotoUrl,
   portalQuotePdfUrl,
   type JobStatus,
@@ -114,6 +115,7 @@ export default function PortalJob() {
       {view.technician ? <TechnicianCard technician={view.technician} phone={view.company.phone} /> : null}
       {view.photos.length > 0 ? <PhotosCard photos={view.photos} token={token} /> : null}
       <VisitRecord view={view} />
+      {view.invoice ? <InvoiceCard invoice={view.invoice} token={token} timezone={view.company.timezone} /> : null}
       {view.quote ? (
         <QuoteCard
           quote={view.quote}
@@ -298,6 +300,94 @@ function VisitRecord({ view }: { view: PortalView }) {
             </li>
           ))}
         </ol>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * What is owed, and the way to settle it.
+ *
+ * The button only asks the server to start a payment; it never knows the
+ * amount, because an amount that travels through a browser is one somebody can
+ * change. Coming back from Stripe does not mark anything paid either - that is
+ * the webhook's job - so this page waits to be told rather than assuming.
+ */
+function InvoiceCard({
+  invoice,
+  token,
+  timezone,
+}: {
+  invoice: NonNullable<PortalView["invoice"]>;
+  token: string;
+  timezone: string;
+}) {
+  const [params] = useSearchParams();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const settled = invoice.status === "paid";
+
+  // Stripe sends them back here after the payment page.
+  const justPaid = params.get("paid") === "1" && !settled;
+
+  async function pay() {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const { url } = await payInvoice(token);
+      window.location.assign(url);
+    } catch (error) {
+      setFailed(error instanceof Error ? error.message : "That did not go through");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="rounded-2xl p-[18px]">
+      <div className="flex flex-col gap-3.5">
+        <div className="flex items-center justify-between">
+          <span className={`font-mono text-[10.5px] font-medium tracking-[0.1em] uppercase ${settled ? "text-done" : "text-waiting"}`}>
+            {settled ? "Paid" : "Amount due"}
+          </span>
+          <span className="font-mono text-[10.5px] text-ink-faint">INV-{invoice.number}</span>
+        </div>
+
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="font-display text-[26px] font-bold tracking-[-0.03em]">{money(invoice.totalCents)}</span>
+          {settled && invoice.paidAt ? (
+            <span className="text-[12.5px] text-ink-muted">Received {shortDate(invoice.paidAt, timezone)}</span>
+          ) : invoice.dueAt ? (
+            <span className="text-[12.5px] text-ink-muted">Due {shortDate(invoice.dueAt, timezone)}</span>
+          ) : null}
+        </div>
+
+        {justPaid ? (
+          <p role="status" className="rounded-tile bg-raised px-3 py-2.5 text-center text-[12px] text-ink-muted">
+            Thank you. Card payments take a moment to confirm - this page updates itself when it lands.
+          </p>
+        ) : null}
+
+        {failed ? (
+          <p role="alert" className="rounded-tile bg-blocked-bg px-3 py-2.5 text-center text-[12px] text-blocked">
+            {failed}
+          </p>
+        ) : null}
+
+        {invoice.payable ? (
+          <button
+            type="button"
+            onClick={pay}
+            disabled={busy}
+            aria-busy={busy}
+            className="min-h-12 rounded-tile bg-accent px-4 text-[15px] font-medium text-accent-ink disabled:opacity-60"
+          >
+            {busy ? "Taking you to the card page…" : `Pay ${money(invoice.totalCents)} by card`}
+          </button>
+        ) : !settled ? (
+          <p className="rounded-tile bg-raised px-3 py-2.5 text-center text-[12px] text-ink-muted">
+            Give us a call to settle this one.
+          </p>
+        ) : null}
       </div>
     </Card>
   );

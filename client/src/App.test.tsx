@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,6 +47,16 @@ const todaysJobs: JobSummary[] = [
   job({ number: 4471, title: "No heat - priority", status: "en_route", priority: "high", crewId: "c-delgado", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", customer: { name: "Amara Osei", kind: "residential" }, address: { street: "45 Linden Ave", city: "Mokena" } }),
 ];
 
+const owing: NonNullable<PortalView["invoice"]> = {
+  number: 4466,
+  status: "sent",
+  totalCents: 61200,
+  issuedAt: "2026-09-23T14:00:00Z",
+  dueAt: "2026-10-07T14:00:00Z",
+  paidAt: null,
+  payable: true,
+};
+
 const portal: PortalView = {
   company: { name: "Northline Mechanical", phone: "(708) 555-0142", timezone: TZ },
   demo: null,
@@ -54,6 +64,7 @@ const portal: PortalView = {
   job: { number: 4471, title: "No heat - priority", status: "en_route", scheduledStart: "2026-09-16T15:30:00Z", scheduledEnd: "2026-09-16T17:30:00Z", timeline: [] },
   address: { street: "45 Linden Ave", city: "Mokena" },
   photos: [],
+  invoice: null,
   technician: { name: "Tomas Delgado", title: "Lead technician", years: 9 },
   quote: {
     number: 4471,
@@ -428,6 +439,68 @@ describe("Kreworx", () => {
       expect(sent).toEqual([{ decision: "approved" }]);
       expect(await screen.findByText("Approved")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+    });
+
+    it("shows what is owed, and offers to take a card", async () => {
+      const user = userEvent.setup();
+      const asked: string[] = [];
+      const go = vi.fn();
+      vi.stubGlobal("location", { assign: go });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith("/pay")) {
+            asked.push(url);
+            return json({ url: "https://checkout.stripe.com/c/pay/cs_test_123" });
+          }
+          void init;
+          return url.startsWith("/api/portal/")
+            ? json({ ...portal, invoice: owing })
+            : json({ error: "Sign in to continue" }, 401);
+        }),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("$612.00")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Pay $612.00 by card" }));
+
+      await waitFor(() => expect(asked).toEqual(["/api/portal/osei-token-123456789/pay"]));
+      // The server decides where the card page is; the button never knows.
+      await waitFor(() => expect(go).toHaveBeenCalledWith("https://checkout.stripe.com/c/pay/cs_test_123"));
+    });
+
+    it("says an invoice is settled rather than offering to charge again", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({
+                ...portal,
+                invoice: { ...owing, status: "paid", paidAt: "2026-09-23T16:00:00Z", payable: false },
+              })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("Paid")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Pay/ })).toBeNull();
+    });
+
+    it("points her at the phone when this business takes no cards", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({ ...portal, invoice: { ...owing, payable: false } })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("Give us a call to settle this one.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Pay/ })).toBeNull();
     });
 
     it("lets her keep a copy of the quote", async () => {
