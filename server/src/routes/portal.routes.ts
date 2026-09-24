@@ -5,6 +5,7 @@ import { demoClockPayload } from "../demo/clock";
 import { ApiError } from "../lib/ApiError";
 import { Company, Crew, Customer, Photo, Property, Quote, User } from "../models";
 import { lineAmountCents, totalCents } from "../models/lineItems";
+import { sendPdf } from "../services/printing";
 import { answerQuote, jobFromToken, NO_SUCH_LINK } from "../services/quotes";
 import { describe as describePhoto, findPhoto, sendImage } from "./photos.routes";
 
@@ -113,6 +114,23 @@ router.get("/portal/:token/photos/:id", async (req, res) => {
   if (!photo.jobId.equals(job._id) || photo.sharedWithCustomer === false) throw ApiError.notFound("Photo not found");
 
   sendImage(res, photo);
+});
+
+/**
+ * Her own quote, to keep.
+ *
+ * The link decides which document this is - there is no id to guess at - and a
+ * draft is not a document she has been sent, so it is not one she can print.
+ */
+router.get("/portal/:token/quote.pdf", async (req, res) => {
+  const job = await jobFromToken(req.params.token);
+
+  const quote = await Quote.findOne({ jobId: job._id, status: { $in: ["sent", "approved", "declined"] } })
+    .sort({ sentAt: -1 })
+    .lean();
+  if (!quote) throw ApiError.notFound("There is no quote on this visit");
+
+  await sendPdf(res, "quote", quote, quote.companyId);
 });
 
 export default router;

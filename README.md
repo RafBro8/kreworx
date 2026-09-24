@@ -14,8 +14,9 @@ work with one tap.
 > deploys are live, the app runs on a seeded demo business with real sign-in and
 > roles, the board and the live map are working, the office has the customer
 > book and writes its own quotes and invoices, and a customer can approve their
-> quote, see the photos of the work and read the record of the visit from their
-> link. Screens still to come say on the page what they will hold.
+> quote, download it as a PDF, see the photos of the work and read the record of
+> the visit from their link. Screens still to come say on the page what they
+> will hold.
 >
 > The API runs on a free instance while this is being built, so it sleeps after
 > a quarter hour idle and the first request afterwards takes about a minute.
@@ -101,6 +102,14 @@ in Chicago.
   Amounts are typed in dollars, because that is what somebody says out loud, and
   converted to cents once at the edge - so nothing downstream ever sees a
   fraction of a cent.
+- **The PDF is drawn, not screenshotted.** A quote and an invoice print from
+  the same figures the customer read on their phone, summed by the same
+  function - the paper can never disagree with the page. It is generated with
+  pdfkit, which is plain JavaScript: the obvious alternative is headless Chrome
+  rendering the web page, which would match the design exactly and pull 300MB
+  of Chromium onto an instance with neither the disk nor the memory for it.
+  A test inflates the finished file and reads the words back, so "the total
+  reached the page" is checked rather than assumed.
 - **Paperwork that has left the building cannot be quietly changed.** A quote is
   editable while it is a draft and frozen the moment it is sent; an invoice is
   frozen once it is settled. A quote may start blank, because writing one begins

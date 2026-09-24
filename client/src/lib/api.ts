@@ -299,6 +299,14 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
+/**
+ * A PDF is fetched by the browser itself, not through `api` - the server sends
+ * it as an attachment and the browser saves it.
+ */
+export const quotePdfUrl = (id: string) => `/api/quotes/${id}/pdf`;
+export const invoicePdfUrl = (id: string) => `/api/invoices/${id}/pdf`;
+export const portalQuotePdfUrl = (token: string) => `/api/portal/${encodeURIComponent(token)}/quote.pdf`;
+
 export const getMoney = () => api<MoneyBook>("/money");
 export const getQuote = (id: string) => api<MoneyDetail>(`/quotes/${id}`);
 export const getInvoice = (id: string) => api<MoneyDetail>(`/invoices/${id}`);

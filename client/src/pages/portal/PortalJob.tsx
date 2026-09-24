@@ -8,6 +8,7 @@ import {
   ApiRequestError,
   getPortal,
   portalPhotoUrl,
+  portalQuotePdfUrl,
   type JobStatus,
   type PortalView,
 } from "../../lib/api";
@@ -371,6 +372,13 @@ function QuoteCard({
           <span className="text-[13.5px] font-medium">Total</span>
           <span className="font-display text-[26px] font-bold tracking-[-0.03em]">{money(quote.totalCents)}</span>
         </div>
+
+        <a
+          href={portalQuotePdfUrl(token)}
+          className="text-center text-[12.5px] text-accent underline underline-offset-2"
+        >
+          Download a copy (PDF)
+        </a>
 
         {waiting ? (
           <div className="flex flex-col gap-2.5">

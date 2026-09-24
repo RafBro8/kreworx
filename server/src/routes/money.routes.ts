@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireAuth, requireRole } from "../middleware/auth";
 import { Customer, Invoice, Job, Quote } from "../models";
+import { sendPdf } from "../services/printing";
 import {
   createInvoice,
   createQuote,
@@ -100,6 +101,26 @@ router.get("/invoices/:id", async (req, res) => {
     ...(await contextFor(invoice.jobId)),
     editable: invoice.status !== "paid" && invoice.status !== "void",
   });
+});
+
+/**
+ * The printable copy. The office downloads it to attach to an email or hand
+ * over on a doorstep; the customer gets the same document from their own link.
+ */
+router.get("/quotes/:id/pdf", async (req, res) => {
+  const auth = authOf(req);
+  const quote = await Quote.findOne({ _id: validId(req.params.id as string, "Quote"), companyId: auth.companyId }).lean();
+  if (!quote) throw ApiError.notFound("Quote not found");
+
+  await sendPdf(res, "quote", quote, auth.companyId);
+});
+
+router.get("/invoices/:id/pdf", async (req, res) => {
+  const auth = authOf(req);
+  const invoice = await Invoice.findOne({ _id: validId(req.params.id as string, "Invoice"), companyId: auth.companyId }).lean();
+  if (!invoice) throw ApiError.notFound("Invoice not found");
+
+  await sendPdf(res, "invoice", invoice, auth.companyId);
 });
 
 // ---- writing ---------------------------------------------------------------

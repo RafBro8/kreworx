@@ -430,6 +430,13 @@ describe("Kreworx", () => {
       expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
     });
 
+    it("lets her keep a copy of the quote", async () => {
+      renderAt("/portal/osei-token-123456789");
+
+      const link = await screen.findByRole("link", { name: /Download a copy/ });
+      expect(link).toHaveAttribute("href", "/api/portal/osei-token-123456789/quote.pdf");
+    });
+
     it("sends a decline as a decline, not as an approval", async () => {
       const user = userEvent.setup();
       const sent: { decision: string }[] = [];

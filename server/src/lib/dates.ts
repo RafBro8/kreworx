@@ -120,3 +120,11 @@ export function clockLabel(instant: Date, timeZone: string): string {
   const twelve = hour % 12 === 0 ? 12 : hour % 12;
   return `${twelve}:${pad(minutes % 60)} ${hour < 12 ? "AM" : "PM"}`;
 }
+
+/**
+ * "23 Sep 2026" in the business timezone - the way a date reads on a printed
+ * document, where there is no screen to hover and no context to infer it from.
+ */
+export function shortDateIn(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric", month: "short", year: "numeric" }).format(instant);
+}

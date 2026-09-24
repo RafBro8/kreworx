@@ -6,6 +6,7 @@ import { createApp } from "../app";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
 import { Company, ensureIndexes, Invoice, Job, Quote } from "../models";
+import { textOfPdf } from "../pdf/text";
 
 const app = createApp();
 
@@ -243,6 +244,83 @@ describe("quotes and invoices", () => {
       const stored = (await Invoice.findById(created.body.id).lean())!;
       expect(stored.status).toBe("paid");
       expect(stored.paidAt).not.toBeNull();
+    });
+  });
+
+  describe("the printed copy", () => {
+    it("hands the office a PDF named after the document", async () => {
+      const job = await jobNumbered(4471);
+      const quote = (await Quote.findOne({ jobId: job._id }).lean())!;
+
+      const response = await request(app)
+        .get(`/api/quotes/${quote._id.toString()}/pdf`)
+        .set("Cookie", office)
+        .responseType("blob");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toBe("application/pdf");
+      expect(response.headers["content-disposition"]).toContain(`filename="Q-${quote.number}.pdf"`);
+      expect(response.headers["cache-control"]).toContain("no-store");
+      expect(response.body.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+    });
+
+    it("prints the same figures the customer was shown", async () => {
+      const job = await jobNumbered(4471);
+      const quote = (await Quote.findOne({ jobId: job._id }).lean())!;
+      const onScreen = (await request(app).get(`/api/portal/${job.portalToken}`)).body.quote;
+
+      const pdf = await request(app)
+        .get(`/api/quotes/${quote._id.toString()}/pdf`)
+        .set("Cookie", office)
+        .responseType("blob");
+
+      const text = textOfPdf(pdf.body);
+      expect(text).toContain("Amara Osei");
+      // $379.00 on her phone, $379.00 on the paper.
+      expect(text).toContain((onScreen.totalCents / 100).toFixed(2));
+    });
+
+    it("lets the customer keep a copy from her own link", async () => {
+      const job = await jobNumbered(4471);
+
+      const response = await request(app).get(`/api/portal/${job.portalToken}/quote.pdf`).responseType("blob");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toBe("application/pdf");
+      expect(textOfPdf(response.body)).toContain("Northline Mechanical");
+    });
+
+    it("has no copy to give when nothing has been sent", async () => {
+      // 4472 has no quote at all in the seeded script.
+      const job = await jobNumbered(4472);
+      expect((await request(app).get(`/api/portal/${job.portalToken}/quote.pdf`)).status).toBe(404);
+    });
+
+    it("will not print a draft the customer has never seen", async () => {
+      const job = await jobNumbered(4472);
+      await request(app).post(`/api/jobs/${job._id.toString()}/quote`).set("Cookie", office).send({ lineItems: LINES });
+
+      // The draft exists, but it is not a document she has been sent.
+      expect((await request(app).get(`/api/portal/${job.portalToken}/quote.pdf`)).status).toBe(404);
+    });
+
+    it("keeps one business's paperwork off another's printer", async () => {
+      const rival = await Company.create({ name: "Rival Print", slug: "rival-print", trade: "Heating", timezone: "America/Chicago" });
+      const theirQuote = await Quote.create({
+        companyId: rival._id, number: 1, jobId: rival._id, customerId: rival._id, status: "sent",
+        lineItems: [{ kind: "fee", description: "Theirs", quantity: 1, unitPriceCents: 100 }],
+      });
+
+      const response = await request(app).get(`/api/quotes/${theirQuote._id.toString()}/pdf`).set("Cookie", office);
+      expect(response.status).toBe(404);
+    });
+
+    it("is not something a technician can pull", async () => {
+      const tomas = await signInAs("Tomas Delgado");
+      const job = await jobNumbered(4471);
+      const quote = (await Quote.findOne({ jobId: job._id }).lean())!;
+
+      expect((await request(app).get(`/api/quotes/${quote._id.toString()}/pdf`).set("Cookie", tomas)).status).toBe(403);
     });
   });
 

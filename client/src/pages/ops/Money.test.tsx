@@ -192,6 +192,13 @@ describe("writing a quote", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
+  it("offers the printed copy alongside the document", async () => {
+    renderAt("/money/quotes/q-2");
+    await screen.findByText("Quote Q-4480");
+
+    expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute("href", "/api/quotes/q-2/pdf");
+  });
+
   it("shows a sent quote as closed, with nothing to edit", async () => {
     vi.stubGlobal("fetch", fakeApi("dispatcher", sentQuote));
     renderAt("/money/quotes/q-1");

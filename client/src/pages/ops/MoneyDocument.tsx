@@ -7,8 +7,10 @@ import { Card, Eyebrow, StatusPill } from "../../components/ui";
 import {
   getInvoice,
   getQuote,
+  invoicePdfUrl,
   markInvoicePaid,
   saveInvoice,
+  quotePdfUrl,
   saveQuote,
   sendQuote,
   type LineItemInput,
@@ -123,7 +125,15 @@ function Editor({ kind, stored, reload }: { kind: Kind; stored: MoneyDetail; rel
             {stored.job ? ` · #${stored.job.number} ${stored.job.title}` : ""}
           </span>
         </div>
-        <StatusPill tone={TONE[stored.status] ?? "quiet"}>{stored.status}</StatusPill>
+        <div className="flex items-center gap-4">
+          <StatusPill tone={TONE[stored.status] ?? "quiet"}>{stored.status}</StatusPill>
+          <a
+            href={kind === "quote" ? quotePdfUrl(stored.id) : invoicePdfUrl(stored.id)}
+            className="text-[12.5px] text-accent"
+          >
+            Download PDF
+          </a>
+        </div>
       </div>
 
       {kind === "quote" ? (

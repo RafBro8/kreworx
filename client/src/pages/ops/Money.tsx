@@ -128,8 +128,8 @@ function Section({
                   className="flex flex-col gap-2 px-4 py-3 hover:bg-raised sm:flex-row sm:items-center sm:gap-4"
                 >
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="text-[13.5px]">{row.customer ?? "Unknown customer"}</span>
-                    <span className="text-[12px] text-ink-faint">
+                    <span className="truncate text-[13.5px]">{row.customer ?? "Unknown customer"}</span>
+                    <span className="truncate text-[12px] text-ink-faint">
                       {row.job ? `#${row.job.number} ${row.job.title}` : "No job"}
                     </span>
                   </span>
