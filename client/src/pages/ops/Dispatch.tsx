@@ -1,4 +1,4 @@
-import { useCallback, useState, type DragEvent } from "react";
+import { useCallback, useRef, useState, type PointerEvent } from "react";
 import { useSearchParams } from "react-router";
 
 import { canOpen } from "../../auth/access";
@@ -22,6 +22,7 @@ import {
 import { useApi } from "../../lib/useApi";
 import { useDemoMinutes } from "../../lib/useDemoClock";
 import { useLive } from "../../lib/useLive";
+import { dropStartIn, grabbedAtMinutes, laneUnder, movedFar, type Drag } from "./boardDrag";
 
 // The board spans 7 AM to 5 PM: the working day plus the tail of a late job.
 const BOARD_START = 7 * 60;
@@ -50,16 +51,9 @@ const metaTone: Record<Tone, string> = {
 /** Work that has not started yet can be moved; anything under way cannot. */
 const MOVABLE = ["unscheduled", "scheduled", "parts_on_order"];
 
-type Drag = { jobId: string; minutes: number; grabbedAt: number };
 type DropHint = { crewId: string; start: number; minutes: number };
 
-/** Where a job would land, given the pointer and where it was picked up. */
-function dropStart(event: DragEvent<HTMLElement>, drag: Drag): number {
-  const lane = event.currentTarget.getBoundingClientRect();
-  const atPointer = BOARD_START + ((event.clientX - lane.left) / lane.width) * SPAN;
-  const start = Math.round((atPointer - drag.grabbedAt) / SNAP) * SNAP;
-  return Math.min(Math.max(start, BOARD_START), BOARD_END - drag.minutes);
-}
+const BOARD = { start: BOARD_START, end: BOARD_END, snap: SNAP };
 
 /**
  * One day's schedule, one lane per van. Jobs can be dragged between vans and
@@ -73,6 +67,10 @@ export default function Dispatch() {
   const requestedDate = params.get("date") ?? undefined;
   const [openJob, setOpenJob] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // The pointer handlers run outside React's render, so they read the drag
+  // from a ref rather than from state that has not landed yet.
+  const dragRef = useRef<Drag | null>(null);
+  const lanes = useRef(new Map<string, HTMLElement>());
   const [hint, setHint] = useState<DropHint | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
 
@@ -118,17 +116,43 @@ export default function Dispatch() {
 
   const startDrag = (job: JobSummary, grabbedAt: number) => {
     setMoveError(null);
-    setDrag({ jobId: job.id, minutes: job.estimatedMinutes, grabbedAt });
+    const started = { jobId: job.id, minutes: job.estimatedMinutes, grabbedAt };
+    dragRef.current = started;
+    setDrag(started);
   };
 
   const endDrag = () => {
+    dragRef.current = null;
     setDrag(null);
     setHint(null);
   };
 
-  async function dropOnCrew(crewId: string, start: number) {
-    if (!drag) return;
-    const moving = drag;
+  /**
+   * A touch pointer stays captured by the block it started on, so no lane ever
+   * hears about it. The block reports where the finger is and the board works
+   * out which lane that is.
+   */
+  const dragOver = (x: number, y: number) => {
+    const moving = dragRef.current;
+    if (!moving) return;
+    const lane = laneUnder({ x, y }, lanes.current);
+    setHint(lane ? { crewId: lane.crewId, start: dropStartIn(x, lane.rect, moving, BOARD), minutes: moving.minutes } : null);
+  };
+
+  const dragDrop = (x: number, y: number) => {
+    const moving = dragRef.current;
+    const lane = moving ? laneUnder({ x, y }, lanes.current) : null;
+    if (!moving || !lane) return endDrag();
+    void dropOnCrew(lane.crewId, dropStartIn(x, lane.rect, moving, BOARD), moving);
+  };
+
+  /**
+   * The job being moved is passed in rather than read from state: the gesture
+   * holds it in a ref, and a quick drag can finish before React has rendered
+   * the state that started it. Reading state here dropped those moves on the
+   * floor without a word.
+   */
+  async function dropOnCrew(crewId: string, start: number, moving: Drag) {
     endDrag();
     try {
       await scheduleJob(moving.jobId, {
@@ -179,8 +203,14 @@ export default function Dispatch() {
         ) : null}
       </div>
 
+      {/* Floated rather than placed in the flow: a refusal used to appear above
+          the board and push every lane down, which is disorienting when it
+          lands in the middle of a drag. */}
       {moveError ? (
-        <div role="alert" className="flex items-start justify-between gap-4 rounded-card border border-blocked-line bg-blocked-bg px-4 py-3">
+        <div
+          role="alert"
+          className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-start justify-between gap-4 rounded-card border border-blocked-line bg-blocked-bg px-4 py-3 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.6)]"
+        >
           <span className="text-[13px] text-ink">{moveError}</span>
           <button type="button" onClick={() => setMoveError(null)} className="shrink-0 text-[12px] text-ink-muted hover:text-ink">
             Dismiss
@@ -231,9 +261,12 @@ export default function Dispatch() {
                 drag={drag}
                 hint={hint?.crewId === crew.id ? hint : null}
                 onStartDrag={startDrag}
-                onEndDrag={endDrag}
-                onHint={setHint}
-                onDrop={dropOnCrew}
+                onDragOver={dragOver}
+                onDragDrop={dragDrop}
+                registerLane={(element) => {
+                  if (element) lanes.current.set(crew.id, element);
+                  else lanes.current.delete(crew.id);
+                }}
               />
             ))}
           </div>
@@ -250,7 +283,14 @@ export default function Dispatch() {
             </div>
           </div>
           {office ? (
-            <UnscheduledQueue queue={queue} timezone={timezone} onOpen={setOpenJob} onStartDrag={startDrag} onEndDrag={endDrag} />
+            <UnscheduledQueue
+              queue={queue}
+              timezone={timezone}
+              onOpen={setOpenJob}
+              onStartDrag={startDrag}
+              onDragOver={dragOver}
+              onDragDrop={dragDrop}
+            />
           ) : null}
         </aside>
       </div>
@@ -280,25 +320,13 @@ type LaneProps = {
   drag: Drag | null;
   hint: DropHint | null;
   onStartDrag: (job: JobSummary, grabbedAt: number) => void;
-  onEndDrag: () => void;
-  onHint: (hint: DropHint) => void;
-  onDrop: (crewId: string, start: number) => void;
+  onDragOver: (x: number, y: number) => void;
+  onDragDrop: (x: number, y: number) => void;
+  registerLane: (element: HTMLElement | null) => void;
 };
 
-function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint, onStartDrag, onEndDrag, onHint, onDrop }: LaneProps) {
+function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint, onStartDrag, onDragOver, onDragDrop, registerLane }: LaneProps) {
   const bookedMinutes = jobs.reduce((sum, job) => sum + job.estimatedMinutes, 0);
-
-  const over = (event: DragEvent<HTMLElement>) => {
-    if (!drag) return;
-    event.preventDefault();
-    onHint({ crewId: crew.id, start: dropStart(event, drag), minutes: drag.minutes });
-  };
-
-  const drop = (event: DragEvent<HTMLElement>) => {
-    if (!drag) return;
-    event.preventDefault();
-    onDrop(crew.id, dropStart(event, drag));
-  };
 
   return (
     <div className="grid h-[92px] grid-cols-[176px_1fr] items-center border-b border-line/60">
@@ -315,10 +343,9 @@ function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint
       </div>
 
       <ol
+        ref={registerLane}
         aria-label={`${crew.name}'s jobs`}
-        onDragOver={over}
-        onDragEnter={over}
-        onDrop={drop}
+        data-lane={crew.id}
         className={`relative h-16 rounded-tile ${drag ? "outline-1 outline-offset-2 outline-dashed outline-border" : ""}`}
       >
         {jobs.length === 0 ? (
@@ -336,7 +363,8 @@ function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint
             dragging={drag?.jobId === job.id}
             draggable={draggable && MOVABLE.includes(job.status)}
             onStartDrag={onStartDrag}
-            onEndDrag={onEndDrag}
+            onDragOver={onDragOver}
+            onDragDrop={onDragDrop}
           />
         ))}
         {hint ? <DropPreview hint={hint} /> : null}
@@ -368,6 +396,71 @@ function timeLabel(minutes: number): string {
   return `${twelve}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+type DragHandlers = {
+  onStartDrag: (job: JobSummary, grabbedAt: number) => void;
+  onDragOver: (x: number, y: number) => void;
+  onDragDrop: (x: number, y: number) => void;
+};
+
+/**
+ * One pointer gesture on a job: press, move, release.
+ *
+ * Nothing happens until the pointer has moved far enough to mean it, so a tap
+ * still opens the job. The state is held in a ref because starting a drag
+ * re-renders the board, and anything kept in a closure built during render
+ * would be thrown away exactly when the next move needs it.
+ *
+ * The block reports coordinates and the board decides which lane they fall in -
+ * necessary because a touch pointer stays captured by whatever it started on,
+ * so a lane never hears about a finger passing over it.
+ */
+function useDragGesture(job: JobSummary, spanMinutes: number, { onStartDrag, onDragOver, onDragDrop }: DragHandlers) {
+  const gesture = useRef<{ from: { x: number; y: number } | null; dragging: boolean }>({ from: null, dragging: false });
+
+  return {
+    onPointerDown(event: PointerEvent<HTMLButtonElement>) {
+      // Secondary buttons are for menus, not for moving work.
+      if (event.button !== 0) return;
+      gesture.current = { from: { x: event.clientX, y: event.clientY }, dragging: false };
+      event.currentTarget.dataset.dragged = "no";
+      // jsdom has no pointer capture, and a browser that refuses it still
+      // works - it only means the gesture ends if the finger leaves the block.
+      try {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      } catch {
+        // Not available; carry on.
+      }
+    },
+
+    onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+      const { from, dragging } = gesture.current;
+      if (!from) return;
+      const to = { x: event.clientX, y: event.clientY };
+
+      if (!dragging) {
+        if (!movedFar(from, to)) return;
+        gesture.current.dragging = true;
+        event.currentTarget.dataset.dragged = "yes";
+        onStartDrag(job, grabbedAtMinutes(from.x, event.currentTarget.getBoundingClientRect(), spanMinutes));
+      }
+      onDragOver(to.x, to.y);
+    },
+
+    onPointerUp(event: PointerEvent<HTMLButtonElement>) {
+      const wasDragging = gesture.current.dragging;
+      gesture.current = { from: null, dragging: false };
+      if (wasDragging) onDragDrop(event.clientX, event.clientY);
+    },
+
+    onPointerCancel(event: PointerEvent<HTMLButtonElement>) {
+      gesture.current = { from: null, dragging: false };
+      event.currentTarget.dataset.dragged = "no";
+      // Nowhere is not a lane, so this puts the job back.
+      onDragDrop(-1, -1);
+    },
+  };
+}
+
 function JobBlock({
   job,
   timezone,
@@ -376,7 +469,8 @@ function JobBlock({
   draggable,
   dragging,
   onStartDrag,
-  onEndDrag,
+  onDragOver,
+  onDragDrop,
 }: {
   job: JobSummary;
   timezone: string;
@@ -385,12 +479,15 @@ function JobBlock({
   draggable: boolean;
   dragging: boolean;
   onStartDrag: (job: JobSummary, grabbedAt: number) => void;
-  onEndDrag: () => void;
+  onDragOver: (x: number, y: number) => void;
+  onDragDrop: (x: number, y: number) => void;
 }) {
-  if (!job.scheduledStart || !job.scheduledEnd) return null;
+  const start = job.scheduledStart ? Math.max(minutesOfDay(job.scheduledStart, timezone), BOARD_START) : BOARD_START;
+  const end = job.scheduledEnd ? Math.min(minutesOfDay(job.scheduledEnd, timezone), BOARD_END) : BOARD_START;
+  // Hooks run before the early return, so the gesture is set up either way.
+  const drag = useDragGesture(job, end - start, { onStartDrag, onDragOver, onDragDrop });
 
-  const start = Math.max(minutesOfDay(job.scheduledStart, timezone), BOARD_START);
-  const end = Math.min(minutesOfDay(job.scheduledEnd, timezone), BOARD_END);
+  if (!job.scheduledStart || !job.scheduledEnd) return null;
   const { label, tone } = STATUS[job.status];
   // Scheduled work is quiet; only a job with something going on gets a status word.
   const showStatus = job.status !== "scheduled";
@@ -400,22 +497,18 @@ function JobBlock({
       <button
         type="button"
         aria-haspopup="dialog"
-        draggable={draggable}
-        onDragStart={(event) => {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", job.id);
-          const block = event.currentTarget.getBoundingClientRect();
-          // Where in the block it was picked up, so the job keeps its shape
-          // under the pointer instead of jumping its start to the cursor.
-          const grabbed = block.width > 0 ? ((event.clientX - block.left) / block.width) * (end - start) : 0;
-          onStartDrag(job, grabbed);
+        {...(draggable ? drag : {})}
+        data-movable={draggable ? "yes" : "no"}
+        onClick={(event) => {
+          // A drag ends with a click the browser still fires; opening the panel
+          // on it would fight whatever was just moved.
+          if ((event.currentTarget as HTMLElement).dataset.dragged === "yes") return;
+          onOpen(job.id);
         }}
-        onDragEnd={onEndDrag}
-        onClick={() => onOpen(job.id)}
         title={`#${job.number} ${job.title} - ${job.customer?.name ?? ""}, ${job.address?.street ?? ""}`}
         className={`flex h-full w-full min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-tile border border-l-[3px] px-3 text-left transition-[filter] hover:brightness-125 ${blockTone[tone]} ${
           selected ? "ring-2 ring-accent" : ""
-        } ${dragging ? "opacity-40" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
+        } ${dragging ? "opacity-40" : ""} ${draggable ? "cursor-grab touch-none active:cursor-grabbing" : ""}`}
       >
         <span className="w-full truncate text-[13px] font-medium">
           {job.title}
@@ -433,18 +526,67 @@ function JobBlock({
   );
 }
 
+/**
+ * One job waiting to be booked. A component rather than markup in a loop,
+ * because the drag gesture is a hook and a hook cannot live inside a map.
+ */
+function QueueCard({
+  job,
+  timezone,
+  onOpen,
+  onStartDrag,
+  onDragOver,
+  onDragDrop,
+}: {
+  job: JobSummary;
+  timezone: string;
+  onOpen: (id: string) => void;
+} & DragHandlers) {
+  // An unscheduled job is picked up at its start, so the whole of it follows.
+  const drag = useDragGesture(job, 0, { onStartDrag, onDragOver, onDragDrop });
+
+  return (
+    <li>
+      <button
+                type="button"
+                aria-haspopup="dialog"
+                {...drag}
+                data-movable="yes"
+                onClick={(event) => {
+                  if ((event.currentTarget as HTMLElement).dataset.dragged === "yes") return;
+                  onOpen(job.id);
+                }}
+                className="flex w-full touch-none cursor-grab flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5 text-left hover:border-accent-line active:cursor-grabbing"
+              >
+                <span className="flex w-full items-center justify-between gap-2">
+                  <span className="truncate text-[13px] font-medium">{job.title}</span>
+                  {job.priority === "urgent" ? <StatusPill tone="blocked">Urgent</StatusPill> : null}
+                </span>
+                <span className="w-full truncate text-xs text-ink-muted">
+                  {surnameOrBusiness(job)} · {job.address?.street}
+                </span>
+                <span className="font-mono text-[10.5px] text-ink-faint">
+                  {job.schedulingNote ?? `Requested ${clock(job.requestedAt, timezone)}`} · {formatEstimate(job.estimatedMinutes)}
+                </span>
+              </button>
+    </li>
+  );
+}
+
 function UnscheduledQueue({
   queue,
   timezone,
   onOpen,
   onStartDrag,
-  onEndDrag,
+  onDragOver,
+  onDragDrop,
 }: {
   queue: ReturnType<typeof useApi<JobSummary[]>>;
   timezone: string;
   onOpen: (id: string) => void;
   onStartDrag: (job: JobSummary, grabbedAt: number) => void;
-  onEndDrag: () => void;
+  onDragOver: (x: number, y: number) => void;
+  onDragDrop: (x: number, y: number) => void;
 }) {
   return (
     <section aria-label="Unscheduled" className="rounded-card border border-border bg-surface p-4">
@@ -459,32 +601,15 @@ function UnscheduledQueue({
       {queue.status === "ready" && queue.data.length > 0 ? (
         <ul className="mt-3 flex flex-col gap-2.5">
           {queue.data.map((job) => (
-            <li key={job.id}>
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("text/plain", job.id);
-                  onStartDrag(job, 0);
-                }}
-                onDragEnd={onEndDrag}
-                onClick={() => onOpen(job.id)}
-                className="flex w-full cursor-grab flex-col gap-1 rounded-tile border border-border bg-canvas px-3 py-2.5 text-left hover:border-accent-line active:cursor-grabbing"
-              >
-                <span className="flex w-full items-center justify-between gap-2">
-                  <span className="truncate text-[13px] font-medium">{job.title}</span>
-                  {job.priority === "urgent" ? <StatusPill tone="blocked">Urgent</StatusPill> : null}
-                </span>
-                <span className="w-full truncate text-xs text-ink-muted">
-                  {surnameOrBusiness(job)} · {job.address?.street}
-                </span>
-                <span className="font-mono text-[10.5px] text-ink-faint">
-                  {job.schedulingNote ?? `Requested ${clock(job.requestedAt, timezone)}`} · {formatEstimate(job.estimatedMinutes)}
-                </span>
-              </button>
-            </li>
+            <QueueCard
+              key={job.id}
+              job={job}
+              timezone={timezone}
+              onOpen={onOpen}
+              onStartDrag={onStartDrag}
+              onDragOver={onDragOver}
+              onDragDrop={onDragDrop}
+            />
           ))}
         </ul>
       ) : null}

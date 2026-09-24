@@ -13,7 +13,7 @@ import {
   type JobStatus,
   type PortalView,
 } from "../../lib/api";
-import { clockWithPeriod, initials, minutesOfDay, money, shortDate } from "../../lib/format";
+import { clockWithPeriod, dateInZone, initials, minutesOfDay, money, shortDate } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
 import { useDemoMinutes } from "../../lib/useDemoClock";
 import { useLive } from "../../lib/useLive";
@@ -275,9 +275,20 @@ function PhotosCard({ photos, token }: { photos: PortalView["photos"]; token: st
  * sees, written out differently.
  */
 function VisitRecord({ view }: { view: PortalView }) {
+  const tz = view.company.timezone;
   const firstName = view.technician?.name.split(" ")[0] ?? null;
+
+  // The visit itself. Anything that happened on another day - a booking made
+  // last week, a part ordered yesterday - is dated, because a column of clock
+  // times with no dates reads as though the morning ran backwards.
+  const visitDay = dateInZone(view.job.scheduledStart ?? view.job.timeline.at(-1)?.at ?? new Date(), tz);
+
   const entries = view.job.timeline
-    .map((entry) => ({ ...entry, label: happened(entry.status, firstName) }))
+    .map((entry) => ({
+      ...entry,
+      label: happened(entry.status, firstName),
+      onAnotherDay: dateInZone(entry.at, tz) !== visitDay,
+    }))
     .filter((entry): entry is typeof entry & { label: string } => entry.label !== null);
 
   if (entries.length === 0) return null;
@@ -295,7 +306,8 @@ function VisitRecord({ view }: { view: PortalView }) {
                 {entry.label}
               </span>
               <span className="font-mono text-[11.5px] whitespace-nowrap text-ink-faint">
-                {clockWithPeriod(entry.at, view.company.timezone)}
+                {entry.onAnotherDay ? `${shortDate(entry.at, tz)} · ` : ""}
+                {clockWithPeriod(entry.at, tz)}
               </span>
             </li>
           ))}

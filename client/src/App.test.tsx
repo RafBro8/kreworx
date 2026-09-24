@@ -384,6 +384,35 @@ describe("Kreworx", () => {
       expect(screen.getByText("10:08 AM")).toBeInTheDocument();
     });
 
+    it("dates anything that happened on another day, so the record reads in order", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL) =>
+          String(input).startsWith("/api/portal/")
+            ? json({
+                ...portal,
+                job: {
+                  ...portal.job,
+                  timeline: [
+                    // Booked days before the visit, at a later clock time than
+                    // the morning it actually happened on.
+                    { status: "scheduled", at: "2026-09-13T15:00:00Z" },
+                    { status: "en_route", at: "2026-09-16T15:08:00Z" },
+                  ],
+                },
+              })
+            : json({ error: "Sign in to continue" }, 401),
+        ),
+      );
+      renderAt("/portal/osei-token-123456789");
+
+      expect(await screen.findByText("What happened")).toBeInTheDocument();
+      // Without the date this reads "10:00 AM" above "10:08 AM" and looks wrong.
+      expect(screen.getByText(/Sun 13 Sep/)).toBeInTheDocument();
+      // The day of the visit itself needs no date.
+      expect(screen.getByText("10:08 AM")).toBeInTheDocument();
+    });
+
     it("says when a finished visit finished, instead of repeating the job title", async () => {
       vi.stubGlobal(
         "fetch",

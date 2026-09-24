@@ -134,9 +134,14 @@ in Chicago.
   save to prove it; that is also why local Mongo runs as a one-node replica set.
 - **Status rules live on the server.** It sends each person the moves they are
   allowed, and refuses a change made from a screen that is out of date.
-- **Dragging is an enhancement, not the only way.** Jobs can be dragged between
-  vans and hours, and the panel behind every job does the same with selects -
-  which is the route on a touch screen or without a mouse.
+- **Dragging works with a finger.** The board uses pointer events rather than
+  HTML5 drag-and-drop, which does nothing at all on a touch screen, so a
+  dispatcher can move a job on a tablet. A touch pointer stays captured by
+  whatever it started on, so the job block tracks the gesture and the board
+  works out which lane is underneath. Nothing counts as a drag until the
+  pointer has moved far enough to mean it, so a tap still opens the job - and
+  the panel behind every job does the same with selects, which is the route
+  without a pointer at all.
 - **Live, without polling.** Events say only that something changed and which
   day it belongs to; each screen then reloads through the API, so one set of
   permission rules decides what anyone sees. The socket cannot use the session

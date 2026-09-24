@@ -327,35 +327,53 @@ describe("the dispatch board", () => {
      * the maths easy to read: half way across a 7 AM-5 PM board is noon.
      */
     beforeEach(() => {
-      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
-        left: 0,
-        width: 1000,
-        top: 0,
-        height: 64,
-        right: 1000,
-        bottom: 64,
-        x: 0,
-        y: 0,
-        toJSON: () => ({}),
+      // Lanes are stacked 100px apart so a pointer at a given y really does
+      // land in one lane and not another - the board hit-tests them by rect.
+      const laneOrder = ["c-ramirez", "c-delgado", "c-novak", "c-whitfield"];
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        const lane = this.dataset?.lane;
+        const top = lane ? laneOrder.indexOf(lane) * 100 : 0;
+        return {
+          left: 0,
+          width: 1000,
+          top,
+          height: 64,
+          right: 1000,
+          bottom: top + 64,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        } as DOMRect;
       });
     });
 
     /**
-     * jsdom has no DragEvent, and a plain Event drops the coordinates the board
-     * needs. A MouseEvent carrying the drag's type and a dataTransfer is what
-     * React hands to the handlers in a browser.
+     * A drag, the way a finger or a mouse makes one.
+     *
+     * The board listens for pointer events rather than HTML5 drag-and-drop,
+     * which is what lets a dispatcher move a job on a tablet. jsdom has no
+     * PointerEvent, but a MouseEvent carries the coordinates the handlers read
+     * and React dispatches it to the same props.
      */
-    function dragEvent(type: string, clientX: number, transfer: object): MouseEvent {
-      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
-      Object.defineProperty(event, "dataTransfer", { value: transfer });
+    function pointer(type: string, clientX: number, clientY: number): MouseEvent {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, button: 0 });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      Object.defineProperty(event, "pointerType", { value: "touch" });
       return event;
     }
 
+    /** Where a lane sits, given the stub above. */
+    function laneCentre(lane: HTMLElement): number {
+      const rect = lane.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    }
+
     function dragTo(source: HTMLElement, lane: HTMLElement, clientX: number) {
-      const transfer = { effectAllowed: "", dropEffect: "", setData: vi.fn(), getData: vi.fn() };
-      fireEvent(source, dragEvent("dragstart", 0, transfer));
-      fireEvent(lane, dragEvent("dragover", clientX, transfer));
-      fireEvent(lane, dragEvent("drop", clientX, transfer));
+      const y = laneCentre(lane);
+      fireEvent(source, pointer("pointerdown", 0, 0));
+      // Past the threshold, so this counts as a drag rather than a tap.
+      fireEvent(source, pointer("pointermove", clientX, y));
+      fireEvent(source, pointer("pointerup", clientX, y));
     }
 
     it("moves a job to another van and hour, saving business time for the dropped position", async () => {
@@ -406,7 +424,11 @@ describe("the dispatch board", () => {
       // 8 AM, where Novak is already busy in this fake.
       dragTo(card, screen.getByRole("list", { name: "Novak's jobs" }), 100);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Novak already has #4469 Duct cleaning");
+      const refusal = await screen.findByRole("alert");
+      expect(refusal).toHaveTextContent("Novak already has #4469 Duct cleaning");
+      // Floated, not in the flow: a refusal that pushed the lanes down would
+      // move the board out from under whatever was just dragged.
+      expect(refusal).toHaveClass("fixed");
       expect(await within(queue).findByRole("button", { name: /Water heater leak/ })).toBeInTheDocument();
     });
 
@@ -415,16 +437,16 @@ describe("the dispatch board", () => {
       vi.stubGlobal("fetch", server.fetch);
       renderBoard();
 
-      expect(await screen.findByRole("button", { name: /No heat - priority/ })).toHaveAttribute("draggable", "false");
-      expect(screen.getByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "true");
+      expect(await screen.findByRole("button", { name: /No heat - priority/ })).toHaveAttribute("data-movable", "no");
+      expect(screen.getByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("data-movable", "yes");
     });
 
-    it("gives a technician no draggable jobs at all", async () => {
+    it("gives a technician no movable jobs at all", async () => {
       const server = fakeServer("technician");
       vi.stubGlobal("fetch", server.fetch);
       renderBoard();
 
-      expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("draggable", "false");
+      expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("data-movable", "no");
     });
   });
 
