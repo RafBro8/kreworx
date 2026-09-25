@@ -18,6 +18,7 @@ import { initials, shortDate } from "../lib/format";
 
 /** The rail is icon-only, so every entry carries its name for screen readers and as a hover title. */
 const NAV: { section: Section; to: string; label: string; Icon: typeof CalendarIcon }[] = [
+  { section: "myDay", to: "/my-day", label: "My day", Icon: CalendarIcon },
   { section: "dispatch", to: "/dispatch", label: "Dispatch", Icon: CalendarIcon },
   { section: "map", to: "/map", label: "Live map", Icon: TruckIcon },
   { section: "customers", to: "/customers", label: "Customers", Icon: PeopleIcon },
@@ -25,8 +26,7 @@ const NAV: { section: Section; to: string; label: string; Icon: typeof CalendarI
   { section: "owner", to: "/owner", label: "Owner dashboard", Icon: ChartIcon },
 ];
 
-function titleFor(pathname: string, role: Role): string {
-  if (pathname === "/dispatch" && role === "technician") return "My day";
+function titleFor(pathname: string): string {
   // A page below a section - one customer, say - still belongs to that section,
   // so the header keeps saying where you are rather than falling back to the
   // company name.
@@ -71,7 +71,7 @@ export default function OpsLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[68px] shrink-0 items-center gap-5 border-b border-line bg-panel px-6">
           <div className="flex items-baseline gap-3">
-            <h1 className="font-display text-[21px] font-bold tracking-[-0.03em]">{titleFor(pathname, me.user.role)}</h1>
+            <h1 className="font-display text-[21px] font-bold tracking-[-0.03em]">{titleFor(pathname)}</h1>
             <span className="font-mono text-[13px] text-ink-faint">{shortDate(new Date(), me.company.timezone)}</span>
           </div>
 
@@ -101,7 +101,13 @@ export default function OpsLayout() {
           <Outlet key={me.user.id} />
         </main>
 
-        <footer className="shrink-0 border-t border-line px-6 py-3 text-[11px] text-ink-faint">
+        <footer className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-line px-6 py-3 text-[11px] text-ink-faint">
+          {/* Anybody who lands here should know in one glance that this is a
+              demonstration, not a business's real dispatch board. */}
+          <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[9.5px] tracking-[0.08em] uppercase">
+            Demo site
+          </span>
+          <span>
           Designed &amp; Built by{" "}
             <a
               href="https://goodlookingdigital.com"
@@ -111,6 +117,7 @@ export default function OpsLayout() {
             >
               Good Looking Digital
             </a>
+          </span>
         </footer>
       </div>
     </div>

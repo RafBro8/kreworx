@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { useMe } from "../../auth/context";
-import { Card, ComingUp, Eyebrow, Stat } from "../../components/ui";
+import { Card, Eyebrow, Stat } from "../../components/ui";
 import { getHealth, getOwnerSummary, resetDemo } from "../../lib/api";
 import { money, moneyRounded } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
@@ -41,11 +41,6 @@ export default function Owner() {
           </div>
         )}
       </Card>
-
-      <ComingUp title="The owner's morning read" stage="Stage 7">
-        Revenue over time, jobs won and lost, first-time fix rate, and which crew is running behind - the page an
-        owner checks with coffee before the trucks leave.
-      </ComingUp>
 
       {me.company.isDemo ? <ResetDemo onReset={summary.reload} /> : null}
 

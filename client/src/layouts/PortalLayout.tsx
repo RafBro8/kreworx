@@ -13,7 +13,12 @@ export default function PortalLayout() {
           <Outlet />
         </main>
         <footer className="px-5 pb-6 text-center text-[11px] text-ink-faint">
-          <p>Powered by Kreworx</p>
+          <p>
+            <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[9.5px] tracking-[0.08em] uppercase">
+              Demo site
+            </span>
+          </p>
+          <p className="mt-1.5">Powered by Kreworx</p>
           <p className="mt-1">
             Designed &amp; Built by{" "}
             <a

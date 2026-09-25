@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
-import { canOpen, type Section } from "./access";
+import { canOpen, homeFor, type Section } from "./access";
 import { useAuth } from "./context";
 
 export function FullPageNote({ children }: { children: ReactNode }) {
@@ -25,6 +25,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function RequireSection({ section, children }: { section: Section; children: ReactNode }) {
   const auth = useAuth();
   if (auth.status !== "signedIn") return null;
-  if (!canOpen(auth.me.user.role, section)) return <Navigate to="/dispatch" replace />;
+  // Their own home, not the board - a technician cannot open that either.
+  if (!canOpen(auth.me.user.role, section)) return <Navigate to={homeFor(auth.me.user.role)} replace />;
   return children;
 }

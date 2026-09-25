@@ -242,28 +242,40 @@ describe("Kreworx", () => {
   });
 
   describe("as a technician", () => {
-    it("shows only their own lane and a single section", async () => {
+    it("gets their own day rather than the dispatcher's board", async () => {
       vi.stubGlobal("fetch", fakeApi({ signedInAs: "u-tomas" }));
+      // The board is not theirs to open; asking for it lands them at home.
       renderAt("/dispatch");
 
-      expect(await screen.findByRole("heading", { name: "My day" })).toBeInTheDocument();
-      expect(await screen.findByRole("list", { name: "Delgado's jobs" })).toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "Ramirez's jobs" })).toBeNull();
+      expect(await screen.findByText("Next stop")).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Delgado's jobs" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Unscheduled" })).toBeNull();
       expect(within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("link")).toHaveLength(1);
     });
 
-    it("shows the new person's lane after switching between two technicians on the same page", async () => {
+    it("leads with the stop they are on the way to", async () => {
+      vi.stubGlobal("fetch", fakeApi({ signedInAs: "u-tomas" }));
+      renderAt("/my-day");
+
+      expect(await screen.findByText("Next stop")).toBeInTheDocument();
+      expect(screen.getByText("No heat - priority")).toBeInTheDocument();
+      expect(screen.getByText("Amara Osei")).toBeInTheDocument();
+      expect(screen.getByText("45 Linden Ave")).toBeInTheDocument();
+    });
+
+    it("gives the new person their own day when the seat is switched", async () => {
       const user = userEvent.setup();
       vi.stubGlobal("fetch", fakeApi({ signedInAs: "u-tomas" }));
-      renderAt("/dispatch");
-      expect(await screen.findByRole("list", { name: "Delgado's jobs" })).toBeInTheDocument();
+      renderAt("/my-day");
+      expect(await screen.findByText("No heat - priority")).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /Tomas Delgado/ }));
       await user.click(await screen.findByRole("menuitemradio", { name: /Jalen Brooks/ }));
 
-      expect(await screen.findByRole("list", { name: "Ramirez's jobs" })).toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "Delgado's jobs" })).toBeNull();
+      // Jalen rides with Ramirez, whose only job today is already finished.
+      expect(await screen.findByRole("list", { name: "Finished stops" })).toBeInTheDocument();
+      expect(screen.getByText("AC not cooling")).toBeInTheDocument();
+      expect(screen.queryByText("No heat - priority")).toBeNull();
     });
   });
 

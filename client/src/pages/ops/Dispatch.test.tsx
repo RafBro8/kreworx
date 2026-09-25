@@ -305,21 +305,6 @@ describe("the dispatch board", () => {
     expect(within(screen.getByRole("list", { name: "Delgado's jobs" })).getByText(/On site/i)).toBeInTheDocument();
   });
 
-  it("gives a technician field actions only: no scheduling, no cancel, no customer link", async () => {
-    const server = fakeServer("technician");
-    vi.stubGlobal("fetch", server.fetch);
-    const user = userEvent.setup();
-    renderBoard();
-
-    await user.click(await screen.findByRole("button", { name: /No heat - priority/ }));
-    const panel = await screen.findByRole("dialog", { name: "No heat - priority" });
-
-    const actions = await within(panel).findByRole("group", { name: "Update status" });
-    expect(within(actions).getAllByRole("button").map((button) => button.textContent)).toEqual(["Arrived"]);
-    expect(within(panel).queryByRole("form")).toBeNull();
-    expect(within(panel).queryByRole("link", { name: /Open what/ })).toBeNull();
-  });
-
   describe("dragging", () => {
     /**
      * jsdom gives every element a zero-sized box, so the board cannot work out
@@ -441,13 +426,6 @@ describe("the dispatch board", () => {
       expect(screen.getByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("data-movable", "yes");
     });
 
-    it("gives a technician no movable jobs at all", async () => {
-      const server = fakeServer("technician");
-      vi.stubGlobal("fetch", server.fetch);
-      renderBoard();
-
-      expect(await screen.findByRole("button", { name: /Thermostat swap/ })).toHaveAttribute("data-movable", "no");
-    });
   });
 
   describe("the demo clock", () => {

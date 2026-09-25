@@ -5,7 +5,11 @@ import type { Role } from "../lib/api";
  * them; this only decides what the navigation offers.
  */
 export const SECTIONS = {
-  dispatch: ["owner", "dispatcher", "technician"],
+  // A technician's day is its own screen, not the dispatcher's board with the
+  // controls taken away: one is a wall chart, the other is read on a phone in
+  // somebody's driveway.
+  myDay: ["technician"],
+  dispatch: ["owner", "dispatcher"],
   map: ["owner", "dispatcher"],
   customers: ["owner", "dispatcher"],
   money: ["owner", "dispatcher"],
@@ -20,5 +24,7 @@ export function canOpen(role: Role, section: Section): boolean {
 
 /** Where each seat lands after signing in. */
 export function homeFor(role: Role): string {
-  return role === "owner" ? "/owner" : "/dispatch";
+  if (role === "owner") return "/owner";
+  if (role === "technician") return "/my-day";
+  return "/dispatch";
 }

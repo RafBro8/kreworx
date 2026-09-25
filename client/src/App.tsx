@@ -8,6 +8,8 @@ import OpsLayout from "./layouts/OpsLayout";
 import PortalLayout from "./layouts/PortalLayout";
 import NotFound from "./pages/NotFound";
 import CustomerDetail from "./pages/ops/CustomerDetail";
+import MyDay from "./pages/crew/MyDay";
+import Stop from "./pages/crew/Stop";
 import Customers from "./pages/ops/Customers";
 import Dispatch from "./pages/ops/Dispatch";
 import Money from "./pages/ops/Money";
@@ -40,6 +42,8 @@ export default function App() {
           </RequireAuth>
         }
       >
+        <Route path="my-day" element={<RequireSection section="myDay"><MyDay /></RequireSection>} />
+        <Route path="my-day/:id" element={<RequireSection section="myDay"><Stop /></RequireSection>} />
         <Route path="dispatch" element={<RequireSection section="dispatch"><Dispatch /></RequireSection>} />
         <Route
           path="map"

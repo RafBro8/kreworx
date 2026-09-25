@@ -92,8 +92,8 @@ export default function JobPhotos({ jobId }: { jobId: string }) {
           aria-label="Photo caption"
           className="h-9 rounded-control border border-border bg-surface px-2.5 text-[13px] placeholder:text-ink-faint"
         />
-        <div className="flex items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-[12.5px] text-ink-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-2 text-[12.5px] whitespace-nowrap text-ink-muted">
             <input type="checkbox" checked={share} onChange={(event) => setShare(event.target.checked)} />
             Show the customer
           </label>
@@ -102,7 +102,7 @@ export default function JobPhotos({ jobId }: { jobId: string }) {
             onClick={() => file.current?.click()}
             disabled={busy}
             aria-busy={busy}
-            className="h-9 rounded-control border border-border bg-raised px-3 text-[13px] disabled:opacity-60"
+            className="h-9 shrink-0 rounded-control border border-border bg-raised px-3 text-[13px] whitespace-nowrap disabled:opacity-60"
           >
             {busy ? "Uploading…" : "Add photo"}
           </button>
