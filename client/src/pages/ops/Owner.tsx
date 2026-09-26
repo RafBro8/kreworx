@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { useMe } from "../../auth/context";
-import { Card, Eyebrow, Stat } from "../../components/ui";
-import { getHealth, getOwnerSummary, resetDemo } from "../../lib/api";
+import { Card, Eyebrow, Stat, StatusPill } from "../../components/ui";
+import { getHealth, getOwnerMoney, getOwnerSummary, resetDemo, type OwnerMoney } from "../../lib/api";
 import { money, moneyRounded } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
+import RevenueChart from "./RevenueChart";
 
 export default function Owner() {
   const me = useMe();
   const summary = useApi(getOwnerSummary);
+  const books = useApi(getOwnerMoney);
   const health = useApi(getHealth);
 
   return (
@@ -42,6 +45,13 @@ export default function Owner() {
         )}
       </Card>
 
+      {books.status === "ready" ? <Books books={books.data} /> : null}
+      {books.status === "error" ? (
+        <p role="alert" className="text-sm text-blocked">
+          {books.message}
+        </p>
+      ) : null}
+
       {me.company.isDemo ? <ResetDemo onReset={summary.reload} /> : null}
 
       <Card>
@@ -69,6 +79,140 @@ export default function Owner() {
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * The books: what came in, what has not, and what is still out with a customer.
+ *
+ * Three questions in the order an owner asks them on a Friday afternoon.
+ */
+function Books({ books }: { books: OwnerMoney }) {
+  const { receivable, pipeline } = books;
+  const rate = pipeline.answered > 0 ? Math.round((pipeline.won.count / pipeline.answered) * 100) : null;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <Card className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-col gap-0.5">
+          <Eyebrow>Money in</Eyebrow>
+          <span className="text-[12.5px] text-ink-muted">The last {books.weeks.length} weeks</span>
+        </div>
+        <RevenueChart weeks={books.weeks} />
+      </Card>
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
+        <Card className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <Eyebrow>Owed to you</Eyebrow>
+            <span className="font-display text-[22px] leading-none font-bold tracking-[-0.02em]">
+              {moneyRounded(receivable.totalCents)}
+            </span>
+          </div>
+
+          <Ageing ageing={receivable.ageing} totalCents={receivable.totalCents} />
+
+          {receivable.oldest.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[12.5px] text-ink-muted">Longest outstanding - the calls to make first</span>
+              <ul className="flex flex-col" aria-label="Longest outstanding">
+                {receivable.oldest.map((invoice) => (
+                  <li key={invoice.id} className="border-b border-line last:border-0">
+                    {/* Who and how much on the first line, because those are
+                        what you need to make the call; how late it is underneath.
+                        On a wider screen it is all one row. */}
+                    <Link
+                      to={`/money/invoices/${invoice.id}`}
+                      className="flex flex-col gap-1 py-2 hover:text-accent sm:flex-row sm:items-center sm:gap-3"
+                    >
+                      <span className="flex items-baseline gap-3 sm:min-w-0 sm:flex-1">
+                        <span className="min-w-0 flex-1 truncate text-[13px]">
+                          {invoice.customer ?? "Unknown customer"}
+                        </span>
+                        <span className="shrink-0 font-mono tabular-nums text-[13px] sm:hidden">
+                          {money(invoice.totalCents)}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2.5 sm:gap-3">
+                        {invoice.overdue ? <StatusPill tone="blocked">overdue</StatusPill> : null}
+                        <span className="font-mono text-[12px] whitespace-nowrap text-ink-faint sm:w-16 sm:text-right">
+                          {invoice.daysOld} days
+                        </span>
+                        <span className="hidden w-[74px] shrink-0 text-right font-mono tabular-nums text-[13px] sm:inline">
+                          {money(invoice.totalCents)}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink-muted">Nothing outstanding. Everything billed has been paid.</p>
+          )}
+        </Card>
+
+        <Card className="flex flex-col gap-4">
+          <Eyebrow>Out with customers</Eyebrow>
+          <Stat
+            label="Quotes waiting on an answer"
+            value={moneyRounded(pipeline.out.cents)}
+            note={`${pipeline.out.count} ${pipeline.out.count === 1 ? "quote" : "quotes"}`}
+          />
+          <div className="flex flex-col gap-1.5 border-t border-line pt-4">
+            <Eyebrow>Answered in {pipeline.weeks} weeks</Eyebrow>
+            <span className="font-display text-[26px] leading-none font-bold tracking-[-0.02em]">
+              {rate === null ? "-" : `${rate}%`}
+            </span>
+            <span className="text-[12.5px] text-ink-muted">
+              {rate === null
+                ? "No quotes answered yet."
+                : `${pipeline.won.count} of ${pipeline.answered} approved, worth ${moneyRounded(pipeline.won.cents)}`}
+            </span>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/** Three age bands as one bar. The ramp runs light to dark with the age. */
+function Ageing({ ageing, totalCents }: { ageing: OwnerMoney["receivable"]["ageing"]; totalCents: number }) {
+  const shade = ["var(--chart-age-1)", "var(--chart-age-2)", "var(--chart-age-3)"];
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {totalCents > 0 ? (
+        <div className="flex h-2.5 gap-0.5 overflow-hidden" aria-hidden>
+          {ageing.map((bucket, index) => (
+            <span
+              key={bucket.key}
+              className="first:rounded-l-full last:rounded-r-full"
+              style={{ background: shade[index], width: `${(bucket.cents / totalCents) * 100}%` }}
+            />
+          ))}
+        </div>
+      ) : null}
+      <dl className="grid gap-3 sm:grid-cols-3">
+        {ageing.map((bucket, index) => (
+          <div
+            key={bucket.key}
+            className="flex items-baseline justify-between gap-3 sm:flex-col sm:items-stretch sm:justify-start sm:gap-1"
+          >
+            <dt className="flex items-center gap-1.5 text-[12px] whitespace-nowrap text-ink-muted">
+              <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: shade[index] }} />
+              {bucket.label}
+            </dt>
+            <dd className="flex flex-col items-end gap-0.5 sm:items-stretch">
+              <span className="font-mono tabular-nums text-[15px]">{moneyRounded(bucket.cents)}</span>
+              <span className="text-[11.5px] whitespace-nowrap text-ink-faint">
+                {bucket.count} {bucket.count === 1 ? "invoice" : "invoices"}
+              </span>
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

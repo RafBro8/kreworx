@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireAuth, requireRole } from "../middleware/auth";
 import { Customer, Invoice, Job, Quote } from "../models";
+import { totalCents } from "../models/lineItems";
 import { sendPdf } from "../services/printing";
 import {
   createInvoice,
@@ -24,22 +25,35 @@ const router = Router();
  */
 router.use(["/money", "/quotes", "/invoices"], requireAuth, requireRole("owner", "dispatcher"));
 
+/** How much settled paperwork to show under the open items. */
+const SETTLED_SHOWN = 25;
+
 /**
  * Everything owed and everything waiting, in one read.
  *
- * The page needs both kinds of document side by side, and a contractor's open
- * paperwork is a short list, so it comes back whole rather than paged.
+ * Open paperwork really is a short list even for a busy shop, so all of it
+ * comes back. Closed paperwork is not: a year of paid invoices is thousands of
+ * documents nobody scrolls to, so only the most recent are sent. The two
+ * headline totals are summed over everything that is open, not over the rows
+ * below them, so shortening the list can never quietly change the number.
  */
 router.get("/money", async (req, res) => {
   const auth = authOf(req);
   const scoped = { companyId: auth.companyId };
 
-  const [quotes, invoices] = await Promise.all([
-    Quote.find({ ...scoped, status: { $ne: "draft" } }).sort({ sentAt: -1 }).lean(),
-    Invoice.find({ ...scoped, status: { $ne: "void" } }).sort({ issuedAt: -1 }).lean(),
-  ]);
-  const drafts = await Quote.find({ ...scoped, status: "draft" }).sort({ createdAt: -1 }).lean();
+  const openQuote = { ...scoped, status: "sent" as const };
+  const openInvoice = { ...scoped, status: { $in: ["sent", "overdue"] as const } };
 
+  const [drafts, liveQuotes, settledQuotes, openInvoices, settledInvoices] = await Promise.all([
+    Quote.find({ ...scoped, status: "draft" }).sort({ createdAt: -1 }).lean(),
+    Quote.find(openQuote).sort({ sentAt: -1 }).lean(),
+    Quote.find({ ...scoped, status: { $in: ["approved", "declined"] } }).sort({ sentAt: -1 }).limit(SETTLED_SHOWN).lean(),
+    Invoice.find(openInvoice).sort({ issuedAt: -1 }).lean(),
+    Invoice.find({ ...scoped, status: "paid" }).sort({ issuedAt: -1 }).limit(SETTLED_SHOWN).lean(),
+  ]);
+
+  const quotes = [...liveQuotes, ...settledQuotes];
+  const invoices = [...openInvoices, ...settledInvoices];
   const all = [...drafts, ...quotes, ...invoices];
   const [jobs, customers] = await Promise.all([
     Job.find({ ...scoped, _id: { $in: all.map((document) => document.jobId) } }, { number: 1, title: 1, customerId: 1 }).lean(),
@@ -58,9 +72,19 @@ router.get("/money", async (req, res) => {
     };
   };
 
+  // Summed with the same function the documents themselves use, so the
+  // headline can never disagree with the paperwork it is counting.
+  const sum = (documents: { lineItems: Parameters<typeof totalCents>[0] }[]) =>
+    documents.reduce((total, document) => total + totalCents(document.lineItems), 0);
+
   res.json({
     quotes: [...drafts, ...quotes].map(withContext),
     invoices: invoices.map(withContext),
+    totals: {
+      awaiting: { count: liveQuotes.length, cents: sum(liveQuotes) },
+      unpaid: { count: openInvoices.length, cents: sum(openInvoices) },
+    },
+    settledShown: SETTLED_SHOWN,
   });
 });
 

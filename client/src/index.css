@@ -55,6 +55,13 @@
   --color-waiting: var(--state-waiting);
   --color-waiting-bg: var(--state-waiting-bg);
   --color-waiting-line: var(--state-waiting-line);
+  /* Chart ink. The two series and the debtor age ramp are their own slots
+     rather than borrowed status colours: a bar means "billed" or "settled",
+     not "good" or "bad". Every value below was checked for colour-blind
+     separation and contrast against the surface it sits on. */
+  --color-billed: var(--chart-billed);
+  --color-settled: var(--chart-settled);
+
   --color-blocked: var(--state-blocked);
   --color-blocked-bg: var(--state-blocked-bg);
   --color-blocked-line: var(--state-blocked-line);
@@ -89,6 +96,12 @@
   --state-blocked: #d4685c;
   --state-blocked-bg: #2a1a19;
   --state-blocked-line: #5e3330;
+
+  --chart-billed: #3a86c9;
+  --chart-settled: #2f9e5f;
+  --chart-age-1: #f0c98a;
+  --chart-age-2: #d9a047;
+  --chart-age-3: #a86a1e;
 }
 
 /* ---- customer theme: portal, quotes, invoices ------------------------- */
@@ -120,6 +133,14 @@
   --state-blocked: #a4443a;
   --state-blocked-bg: #f9eae8;
   --state-blocked-line: #f0c9c4;
+
+  /* The same two series read cleanly on white; the age ramp needs its own
+     darker steps, because a ramp is chosen per surface, not flipped. */
+  --chart-billed: #3a86c9;
+  --chart-settled: #2f9e5f;
+  --chart-age-1: #d2a054;
+  --chart-age-2: #b07724;
+  --chart-age-3: #7e4a11;
 }
 
 html,

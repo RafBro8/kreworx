@@ -6,6 +6,7 @@ import { createApp } from "../app";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
 import { Company, ensureIndexes, Invoice, Job, Quote } from "../models";
+import { totalCents } from "../models/lineItems";
 import { textOfPdf } from "../pdf/text";
 
 const app = createApp();
@@ -336,6 +337,31 @@ describe("quotes and invoices", () => {
 
       expect(response.body.invoices.length).toBeGreaterThan(0);
       expect(response.body.invoices.every((row: { status: string }) => row.status !== "void")).toBe(true);
+    });
+
+    it("sends every unpaid invoice, and trims the settled ones", async () => {
+      const response = await request(app).get("/api/money").set("Cookie", office);
+      const invoices = response.body.invoices as { id: string; status: string }[];
+
+      const unpaidInDatabase = await Invoice.countDocuments({ status: { $in: ["sent", "overdue"] } });
+      expect(invoices.filter((row) => row.status !== "paid")).toHaveLength(unpaidInDatabase);
+      // The settled ones are the long tail, and the page only shows the recent few.
+      expect(invoices.filter((row) => row.status === "paid").length).toBeLessThanOrEqual(response.body.settledShown);
+    });
+
+    it("totals what is owed over the whole book, not just the rows it sent", async () => {
+      const response = await request(app).get("/api/money").set("Cookie", office);
+
+      const open = await Invoice.find({ status: { $in: ["sent", "overdue"] } }, { lineItems: 1 }).lean();
+      const owed = open.reduce((total, invoice) => total + totalCents(invoice.lineItems), 0);
+
+      expect(response.body.totals.unpaid).toEqual({ count: open.length, cents: owed });
+      // The guard that matters: summing the rows on the page would miss any
+      // unpaid invoice trimmed out of them, and quietly under-report the debt.
+      const shown = (response.body.invoices as { status: string; totalCents: number }[])
+        .filter((row) => row.status !== "paid")
+        .reduce((total, row) => total + row.totalCents, 0);
+      expect(response.body.totals.unpaid.cents).toBe(shown);
     });
   });
 

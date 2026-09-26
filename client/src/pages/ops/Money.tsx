@@ -47,10 +47,10 @@ export default function Money() {
 
   const quotes = book.status === "ready" ? book.data.quotes : [];
   const invoices = book.status === "ready" ? book.data.invoices : [];
-
-  const awaiting = quotes.filter((row) => row.status === "sent");
-  const unpaid = invoices.filter((row) => row.status !== "paid");
-  const sum = (rows: MoneyRow[]) => rows.reduce((total, row) => total + row.totalCents, 0);
+  // The lists are trimmed to the most recent settled paperwork, so the two
+  // headlines come from the server, which counted all of it.
+  const totals = book.status === "ready" ? book.data.totals : null;
+  const settledShown = book.status === "ready" ? book.data.settledShown : 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -60,8 +60,8 @@ export default function Money() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Headline label="Waiting on an answer" count={awaiting.length} cents={sum(awaiting)} />
-        <Headline label="Billed and unpaid" count={unpaid.length} cents={sum(unpaid)} />
+        <Headline label="Waiting on an answer" count={totals?.awaiting.count ?? 0} cents={totals?.awaiting.cents ?? 0} />
+        <Headline label="Billed and unpaid" count={totals?.unpaid.count ?? 0} cents={totals?.unpaid.cents ?? 0} />
       </div>
 
       <Section
@@ -71,6 +71,7 @@ export default function Money() {
         href={(row) => `/money/quotes/${row.id}`}
         timezone={me.company.timezone}
         dateOf={(row) => row.sentAt}
+        note={`Open quotes, then the last ${settledShown} answered.`}
       />
       <Section
         title="Invoices"
@@ -79,7 +80,9 @@ export default function Money() {
         href={(row) => `/money/invoices/${row.id}`}
         timezone={me.company.timezone}
         dateOf={(row) => row.issuedAt}
+        note={`Everything unpaid, then the last ${settledShown} settled.`}
       />
+
     </div>
   );
 }
@@ -103,6 +106,7 @@ function Section({
   href,
   timezone,
   dateOf,
+  note,
 }: {
   title: string;
   rows: MoneyRow[];
@@ -110,10 +114,14 @@ function Section({
   href: (row: MoneyRow) => string;
   timezone: string;
   dateOf: (row: MoneyRow) => string | null;
+  note?: string;
 }) {
   return (
     <section className="flex flex-col gap-2.5">
-      <Eyebrow>{title}</Eyebrow>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <Eyebrow>{title}</Eyebrow>
+        {note && rows.length > 0 ? <span className="text-[12px] text-ink-faint">{note}</span> : null}
+      </div>
       {rows.length === 0 ? (
         <Card>
           <p className="text-[13.5px] text-ink-muted">{empty}</p>

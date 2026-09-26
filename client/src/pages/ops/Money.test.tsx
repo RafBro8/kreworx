@@ -36,6 +36,9 @@ const book: MoneyBook = {
       job: { number: 4466, title: "AC not cooling" }, customer: "Greg Whitaker",
     },
   ],
+  // The server counts the whole book, because the lists above are trimmed.
+  totals: { awaiting: { count: 1, cents: 37900 }, unpaid: { count: 1, cents: 61200 } },
+  settledShown: 25,
 };
 
 const draft: MoneyDetail = {
@@ -105,8 +108,8 @@ describe("the money page", () => {
     // what stops this reading the headline while it still says nothing.
     await screen.findByRole("list", { name: "Quotes" });
     const waiting = screen.getByText("Waiting on an answer").parentElement!;
-    // Only the sent quote counts as waiting; the draft has not gone anywhere,
-    // so its $233 is nowhere in this number.
+    // The number comes from the server's count of everything open, not from
+    // the rows on the page - the draft's $233 is in neither.
     expect(within(waiting).getByText("$379.00")).toBeInTheDocument();
     expect(within(waiting).getByText("1 document")).toBeInTheDocument();
 

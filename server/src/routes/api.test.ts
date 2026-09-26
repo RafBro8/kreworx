@@ -6,7 +6,8 @@ import { createApp } from "../app";
 import { SESSION_COOKIE, signSession } from "../auth/session";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
-import { Company, Customer, ensureIndexes, Job, Property, Quote, User } from "../models";
+import { Company, Customer, ensureIndexes, Invoice, Job, Property, Quote, User } from "../models";
+import { totalCents } from "../models/lineItems";
 import { answerQuote } from "../services/quotes";
 
 const app = createApp();
@@ -141,6 +142,60 @@ describe("the Kreworx API", () => {
         invoicedTodayCents: 4_180_00,
       });
       expect(response.body.invoicedThisWeekCents).toBeGreaterThanOrEqual(4_180_00);
+    });
+
+    it("keeps the owner's books away from a dispatcher", async () => {
+      const cookie = await signInAs("Dana Morales");
+      expect((await request(app).get("/api/owner/money").set("Cookie", cookie)).status).toBe(403);
+    });
+
+    it("charts whole weeks, ending with the one we are in", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/money").set("Cookie", cookie);
+
+      expect(response.status).toBe(200);
+      const weeks = response.body.weeks as { weekStart: string; billedCents: number }[];
+      expect(weeks).toHaveLength(12);
+      // Every column is a Monday, seven days after the one before it.
+      for (const [index, week] of weeks.entries()) {
+        expect(new Date(week.weekStart + "T00:00:00Z").getUTCDay()).toBe(1);
+        if (index > 0) {
+          const gap = Date.parse(week.weekStart) - Date.parse(weeks[index - 1]!.weekStart);
+          expect(gap).toBe(7 * 24 * 60 * 60 * 1000);
+        }
+      }
+      // The demo has months of trade behind it, not just this morning.
+      expect(weeks.filter((week) => week.billedCents > 0).length).toBeGreaterThan(8);
+    });
+
+    it("ages the debt into buckets that add up to what is owed", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/money").set("Cookie", cookie);
+      const { receivable } = response.body as {
+        receivable: { totalCents: number; ageing: { key: string; count: number; cents: number }[]; oldest: { daysOld: number }[] };
+      };
+
+      const open = await Invoice.find({ status: { $in: ["sent", "overdue"] } }, { lineItems: 1 }).lean();
+      expect(receivable.totalCents).toBe(open.reduce((total, invoice) => total + totalCents(invoice.lineItems), 0));
+      // Nothing may fall between two buckets, or the owner is chasing a number
+      // that does not match the one at the top of the page.
+      expect(receivable.ageing.reduce((total, bucket) => total + bucket.cents, 0)).toBe(receivable.totalCents);
+      expect(receivable.ageing.reduce((total, bucket) => total + bucket.count, 0)).toBe(open.length);
+      // Worst first: that is the order you make the calls in.
+      const ages = receivable.oldest.map((invoice) => invoice.daysOld);
+      expect([...ages].sort((a, b) => b - a)).toEqual(ages);
+    });
+
+    it("counts only quotes still out as the pipeline", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/money").set("Cookie", cookie);
+
+      const stillOut = await Quote.find({ status: "sent" }, { lineItems: 1 }).lean();
+      expect(response.body.pipeline.out).toEqual({
+        count: stillOut.length,
+        cents: stillOut.reduce((total, quote) => total + totalCents(quote.lineItems), 0),
+      });
+      expect(response.body.pipeline.won.count).toBeLessThanOrEqual(response.body.pipeline.answered);
     });
 
     it("rejects a malformed date rather than guessing", async () => {

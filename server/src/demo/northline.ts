@@ -249,3 +249,19 @@ export const TEMPLATES: readonly { title: string; minutes: number; lineItems: Li
   { title: "Maintenance plan visit", minutes: 120, lineItems: [fee("Comfort Plan visit", 0, false, "Covered by plan"), part("Pleated filter", 24), labour(1, 96)] },
   { title: "Boiler service", minutes: 150, lineItems: [fee("Boiler service", 219), part("Pressure relief valve", 58)] },
 ];
+
+/**
+ * What the technician wrote up before quoting, for the work behind us.
+ *
+ * The scripted quotes above each have their own diagnosis because a visitor
+ * reads those. These are for the months of history nobody opens one by one,
+ * and exist so a quote pulled up at random still reads like a person wrote it.
+ */
+export const HISTORY_FINDINGS: readonly string[] = [
+  "Unit is running but well down on capacity. Parts and labour to put it right are listed below.",
+  "Found the fault on the first visit and quoted the repair rather than guessing at a price on the doorstep.",
+  "The failed part is still available for this model, so a repair makes better sense than a replacement.",
+  "Everything else tested within range. The work below is what it needs and nothing more.",
+  "Wear consistent with the age of the equipment. Quoted the repair, with the alternative noted on the call.",
+  "Traced it to a single component rather than a system fault, which keeps the cost where it is below.",
+];

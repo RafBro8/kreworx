@@ -53,7 +53,10 @@ describe("resetting the demo", () => {
 
     expect(response.status).toBe(204);
     expect((await Job.findOne({ number: 4474 }).lean())!.status).toBe("scheduled");
-    expect(await Job.countDocuments({ status: "cancelled" })).toBe(0);
+    // Today and the days ahead are scripted, and nothing in them is called
+    // off - so a cancellation surviving a reset would show up here. The months
+    // of history behind us do contain cancelled work, and should.
+    expect(await Job.countDocuments({ number: { $gte: 4466 }, status: "cancelled" })).toBe(0);
   });
 
   it("is the owner's button, not everyone's", async () => {

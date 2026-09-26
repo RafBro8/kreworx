@@ -160,7 +160,38 @@ export type MoneyDetail = MoneyDocument & {
   editable: boolean;
 };
 
-export type MoneyBook = { quotes: MoneyRow[]; invoices: MoneyRow[] };
+export type MoneyBook = {
+  quotes: MoneyRow[];
+  invoices: MoneyRow[];
+  /** Summed by the server over every open document, not just the rows above. */
+  totals: { awaiting: { count: number; cents: number }; unpaid: { count: number; cents: number } };
+  /** How many settled documents of each kind the lists were trimmed to. */
+  settledShown: number;
+};
+
+/** The owner's books: takings over time, what is owed, and what is still out. */
+export type OwnerMoney = {
+  timezone: string;
+  weeks: { weekStart: string; billedCents: number; settledCents: number }[];
+  receivable: {
+    totalCents: number;
+    ageing: { key: string; label: string; count: number; cents: number }[];
+    oldest: {
+      id: string;
+      number: number;
+      customer: string | null;
+      daysOld: number;
+      overdue: boolean;
+      totalCents: number;
+    }[];
+  };
+  pipeline: {
+    out: { count: number; cents: number };
+    won: { count: number; cents: number };
+    answered: number;
+    weeks: number;
+  };
+};
 
 export type CustomerRow = {
   id: string;
@@ -307,6 +338,7 @@ export const getCrews = () => api<Crew[]>("/crews");
 export const getJobs = (date?: string) => api<DayOfJobs>(`/jobs${date ? `?date=${date}` : ""}`);
 export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
+export const getOwnerMoney = () => api<OwnerMoney>("/owner/money");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
 /**

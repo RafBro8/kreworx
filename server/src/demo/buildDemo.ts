@@ -10,6 +10,7 @@ import {
   CREWS,
   CUSTOMERS,
   HALVORSEN_QUOTE,
+  HISTORY_FINDINGS,
   LINDQVIST_QUOTE,
   OKONKWO_QUOTE,
   OSEI_QUOTE,
@@ -30,8 +31,19 @@ import {
  */
 
 const TZ = COMPANY.timezone;
-const PAST_WORKING_DAYS = 3;
+/**
+ * How far back the finished work runs.
+ *
+ * The board only ever asks for a day at a time, so three would do. The owner's
+ * charts want something else: a business with a history. Eight working weeks
+ * of completed jobs and settled invoices gives a revenue line something to
+ * draw and an aged debtors list something to age.
+ */
+const HISTORY_WORKING_DAYS = 65;
+/** The last few of those are scripted, because today's story refers back to them. */
+const SCRIPTED_PAST_DAYS = 3;
 const FUTURE_WORKING_DAYS = 4;
+const DAY_MS = 24 * 60 * 60_000;
 const DAY_OPENS = at("7:30");
 const DAY_CLOSES = at("16:30");
 
@@ -61,7 +73,7 @@ export type PlannedQuote = {
   number: number;
   jobId: Types.ObjectId;
   customerId: Types.ObjectId;
-  status: "sent" | "approved";
+  status: "sent" | "approved" | "declined";
   findings: string;
   lineItems: LineItem[];
   sentAt: Date;
@@ -74,7 +86,7 @@ export type PlannedInvoice = {
   number: number;
   jobId: Types.ObjectId;
   customerId: Types.ObjectId;
-  status: "sent" | "paid";
+  status: "sent" | "paid" | "overdue";
   lineItems: LineItem[];
   issuedAt: Date;
   dueAt: Date;
@@ -132,9 +144,9 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   const time = (date: string, clock: string | number) => zonedTime(date, typeof clock === "number" ? clock : at(clock), TZ);
 
   const today = dateIn(now, TZ);
-  const pastDays = workingDays(today, PAST_WORKING_DAYS, -1);
+  const pastDays = workingDays(today, HISTORY_WORKING_DAYS, -1);
   const futureDays = workingDays(today, FUTURE_WORKING_DAYS, 1);
-  const [threeBack, twoBack, yesterday] = pastDays as [string, string, string];
+  const [threeBack, twoBack, yesterday] = pastDays.slice(-SCRIPTED_PAST_DAYS) as [string, string, string];
 
   // ---- customers and their properties ----------------------------------
   const customerIds = new Map<string, Types.ObjectId>();
@@ -175,7 +187,15 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   });
 
   // ---- jobs --------------------------------------------------------------
-  type Draft = Omit<PlannedJob, "number" | "portalToken"> & { customerKey: string; day: string; invoice?: { lineItems: LineItem[]; paid: boolean } };
+  type Draft = Omit<PlannedJob, "number" | "portalToken"> & {
+    customerKey: string;
+    day: string;
+    // A missing "paid" means "decide from the age of the bill" - only the
+    // scripted jobs in northline.ts state it outright.
+    invoice?: { lineItems: LineItem[]; paid?: boolean };
+    // Set on the history visits that were quoted before the work was agreed.
+    quote?: { declined: boolean; lineItems: LineItem[] };
+  };
   const drafts: Draft[] = [];
 
   /** Timeline for a job that ran as planned, from booking to finish. */
@@ -216,7 +236,7 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
       estimatedMinutes: options.minutes,
       requestedAt,
       timeline: done ? completedTimeline(requestedAt, start, end) : [{ status: "scheduled", at: requestedAt }],
-      invoice: done && options.lineItems ? { lineItems: options.lineItems, paid: random() < 0.7 } : undefined,
+      invoice: done && options.lineItems ? { lineItems: options.lineItems } : undefined,
     };
   };
 
@@ -263,8 +283,32 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   const okonkwoEstimate = scheduledDraft({ day: twoBack, crew: "novak", customerKey: "okonkwo", title: "Estimate - humidifier", startMinutes: at("13:30"), minutes: 60, status: "done" });
   drafts.push(oseiDiagnosis, halvorsenDiagnosis, lindqvistEstimate, okonkwoEstimate);
 
-  for (const day of pastDays) {
-    for (const crew of CREWS) fillCrewDay(day, crew.key, "done", 3);
+  // Late September is the start of the heating season, so the weeks nearest
+  // today are busier than the ones back in August. A perfectly flat eight weeks
+  // would be the one thing on the owner's chart an HVAC man could tell at a
+  // glance had been invented.
+  for (const [index, day] of pastDays.entries()) {
+    const season = pastDays.length > 1 ? index / (pastDays.length - 1) : 1;
+    const target = 2 + (random() < 0.35 + 0.5 * season ? 1 : 0) + (random() < 0.15 + 0.35 * season ? 1 : 0);
+    for (const crew of CREWS) fillCrewDay(day, crew.key, "done", target);
+  }
+
+  // Not every job in the history was simply booked and done: about a fifth
+  // were quoted first, and roughly one in six of those was a no. Without them
+  // the owner's accept rate reads "three out of three", which is not a rate.
+  // A declined quote leaves work nobody did, so those visits are called off
+  // rather than finished, and never billed.
+  const scripted = new Set([oseiDiagnosis, halvorsenDiagnosis, lindqvistEstimate, okonkwoEstimate]);
+  for (const draft of drafts) {
+    if (scripted.has(draft) || draft.status !== "done" || !draft.invoice) continue;
+    if (random() > 0.2) continue;
+    const declined = random() < 0.16;
+    draft.quote = { declined, lineItems: draft.invoice.lineItems };
+    if (declined) {
+      draft.status = "cancelled";
+      draft.invoice = undefined;
+      draft.timeline = [draft.timeline[0]!, { status: "cancelled", at: draft.scheduledStart! }];
+    }
   }
 
   // Today, exactly as scripted.
@@ -342,21 +386,51 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   const jobFor = (draft: Draft) => jobs.find((job) => job._id.equals(draft._id))!;
 
   // ---- invoices for finished work ------------------------------------------
+  /**
+   * When a bill was settled, or that it has not been.
+   *
+   * Northline's customers mostly pay inside a month, so a bill raised in August
+   * is almost certainly closed and one raised on Tuesday almost certainly is
+   * not. Deciding it from the age rather than by a flat coin toss is what gives
+   * the owner's aged debtors the shape a real book has: a fat current column
+   * and a thin tail of people who need chasing.
+   */
+  const settledAt = (issuedAt: Date): Date | null => {
+    // Most residential work is paid at the door by card the same afternoon;
+    // the rest goes out on terms and comes back inside the month. A flat two
+    // to thirty days would leave half of every month outstanding, which is
+    // not what the book of a shop that takes cards actually looks like.
+    const days = random() < 0.62 ? random() : 4 + random() * 26;
+    const paidAt = new Date(issuedAt.getTime() + days * DAY_MS);
+    if (paidAt > now) return null; // raised, but not yet due to have been paid
+    return random() < 0.95 ? paidAt : null; // the rest are the ones being chased
+  };
+
   const invoices: PlannedInvoice[] = numbered
     .filter(({ draft }) => draft.status === "done" && draft.invoice)
     .map(({ number, draft }) => {
       const doneAt = draft.timeline.find((entry) => entry.status === "done")!.at;
       const issuedAt = new Date(doneAt.getTime() + 15 * 60_000);
+      const dueAt = new Date(issuedAt.getTime() + 14 * DAY_MS);
+      // The scripted jobs say outright whether they were paid; everything else
+      // is decided by how long the bill has been sitting there.
+      const scripted = draft.invoice!.paid;
+      const paidAt =
+        scripted === undefined
+          ? settledAt(issuedAt)
+          : scripted
+            ? new Date(issuedAt.getTime() + 40 * 60_000)
+            : null;
       return {
         _id: new Types.ObjectId(),
         number,
         jobId: draft._id,
         customerId: draft.customerId,
-        status: draft.invoice!.paid ? "paid" : "sent",
+        status: paidAt ? "paid" : dueAt < now ? "overdue" : "sent",
         lineItems: draft.invoice!.lineItems,
         issuedAt,
-        dueAt: new Date(issuedAt.getTime() + 14 * 24 * 60 * 60_000),
-        paidAt: draft.invoice!.paid ? new Date(issuedAt.getTime() + 40 * 60_000) : null,
+        dueAt,
+        paidAt,
       };
     });
 
@@ -374,7 +448,31 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
     validUntil: new Date(sentAt.getTime() + 14 * 24 * 60 * 60_000),
   });
 
+  /**
+   * A quote raised off the back of the visit: sent a couple of days before the
+   * work was due, answered the day after that.
+   */
+  const historyQuotes: PlannedQuote[] = numbered
+    .filter(({ draft }) => draft.quote)
+    .map(({ number, draft }) => {
+      const visit = draft.scheduledStart!;
+      const sentAt = new Date(visit.getTime() - 3 * DAY_MS);
+      return {
+        _id: new Types.ObjectId(),
+        number,
+        jobId: draft._id,
+        customerId: draft.customerId,
+        status: draft.quote!.declined ? ("declined" as const) : ("approved" as const),
+        findings: pick(HISTORY_FINDINGS),
+        lineItems: draft.quote!.lineItems,
+        sentAt,
+        respondedAt: new Date(sentAt.getTime() + DAY_MS),
+        validUntil: new Date(sentAt.getTime() + 14 * DAY_MS),
+      };
+    });
+
   const quotes: PlannedQuote[] = [
+    ...historyQuotes,
     quote(jobByNumber.get(4471)!, OSEI_QUOTE, time(today, "9:58"), null),
     quote(jobByNumber.get(4473)!, HALVORSEN_QUOTE, time(twoBack, "12:40"), time(twoBack, "18:05")),
     quote(jobByNumber.get(4474)!, PRUITT_QUOTE, time(twoBack, "16:20"), time(yesterday, "8:10")),
