@@ -70,9 +70,11 @@ export default function OpsLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[68px] shrink-0 items-center gap-5 border-b border-line bg-panel px-6">
-          <div className="flex items-baseline gap-3">
-            <h1 className="font-display text-[21px] font-bold tracking-[-0.03em]">{titleFor(pathname)}</h1>
-            <span className="font-mono text-[13px] text-ink-faint">{shortDate(new Date(), me.company.timezone)}</span>
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1 className="truncate font-display text-[21px] font-bold tracking-[-0.03em]">{titleFor(pathname)}</h1>
+            <span className="hidden font-mono text-[13px] whitespace-nowrap text-ink-faint sm:inline">
+              {shortDate(new Date(), me.company.timezone)}
+            </span>
           </div>
 
           {/* The office searches; a technician has their own day and never

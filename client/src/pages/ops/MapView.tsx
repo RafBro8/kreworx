@@ -267,33 +267,26 @@ export default function MapView() {
         ) : null}
       </div>
 
-      <div className="relative min-h-[460px] flex-1 overflow-hidden rounded-card border border-border bg-panel">
-        {/* Sized, not absolutely positioned: MapLibre sets position:relative on
-            its own container, which would undo inset-0 and collapse it. */}
-        <div ref={container} className="h-full w-full" data-testid="map-canvas" />
+      {/* The legend and the counts are written once and moved, not rendered
+          twice: two copies would be read out twice by a screen reader. From a
+          tablet up they sit over the map, where there is room to spare; on a
+          phone they would cover most of the thing they describe, so the
+          wrapper becomes a column and they fall in underneath it. */}
+      <div className="flex min-h-[340px] flex-1 flex-col gap-3 sm:relative sm:block sm:min-h-[460px]">
+        <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-card border border-border bg-panel sm:h-full sm:min-h-0">
+          {/* Sized, not absolutely positioned: MapLibre sets position:relative
+              on its own container, which would undo inset-0 and collapse it. */}
+          <div ref={container} className="h-full w-full" data-testid="map-canvas" />
 
-        {mapFailed ? (
-          <p role="status" className="absolute top-4 left-4 z-10 rounded-control border border-waiting-line bg-waiting-bg px-3 py-2 text-[12px] text-ink">
-            The map tiles could not be reached. Everything else still works.
-          </p>
-        ) : null}
-
-        <div className="pointer-events-none absolute top-4 left-4 z-10 flex flex-col gap-2 rounded-card border border-border bg-panel/90 px-3.5 py-3">
-          <Eyebrow>Today</Eyebrow>
-          {LEGEND.map((entry) => (
-            <span key={entry.label} className="flex items-center gap-2 text-[12px] text-ink-muted">
-              <span className={`h-2 w-2 rounded-full ${pinColour[entry.tone]}`} />
-              {entry.label}
-            </span>
-          ))}
+          {mapFailed ? (
+            <p role="status" className="absolute top-4 left-4 z-10 rounded-control border border-waiting-line bg-waiting-bg px-3 py-2 text-[12px] text-ink">
+              The map tiles could not be reached. Everything else still works.
+            </p>
+          ) : null}
         </div>
 
-        <div className="absolute inset-x-4 bottom-4 z-10 flex flex-wrap items-center gap-6 rounded-card border border-border bg-panel/90 px-5 py-3.5">
-          <Stat label="On the road" value={String(onTheRoad)} />
-          <span className="h-9 w-px bg-line" />
-          <Stat label="Done today" value={`${done} / ${jobs.length}`} />
-          <span className="h-9 w-px bg-line" />
-          <Stat label="Crews out" value={String(vans.filter((van) => van.state !== "waiting").length)} />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-border bg-panel px-4 py-3 sm:absolute sm:inset-x-4 sm:bottom-4 sm:z-10 sm:gap-6 sm:bg-panel/90 sm:px-5 sm:py-3.5">
+          <Counts onTheRoad={onTheRoad} done={done} total={jobs.length} vans={vans} />
           {crews.status === "ready" ? (
             <ul className="ml-auto hidden items-center gap-4 lg:flex">
               {vans.map((van) => (
@@ -305,6 +298,10 @@ export default function MapView() {
               ))}
             </ul>
           ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-card border border-border bg-panel px-4 py-3 sm:pointer-events-none sm:absolute sm:top-4 sm:left-4 sm:z-10 sm:bg-panel/90 sm:px-3.5">
+          <Legend />
         </div>
       </div>
 
@@ -324,6 +321,34 @@ export default function MapView() {
 
       <span className="sr-only">{me.company.name} service area</span>
     </div>
+  );
+}
+
+/** What the pin colours mean. Rendered over the map, or under it on a phone. */
+function Legend() {
+  return (
+    <>
+      <Eyebrow>Today</Eyebrow>
+      {LEGEND.map((entry) => (
+        <span key={entry.label} className="flex items-center gap-2 text-[12px] text-ink-muted">
+          <span className={`h-2 w-2 rounded-full ${pinColour[entry.tone]}`} />
+          {entry.label}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** The day in three numbers. */
+function Counts({ onTheRoad, done, total, vans }: { onTheRoad: number; done: number; total: number; vans: Van[] }) {
+  return (
+    <>
+      <Stat label="On the road" value={String(onTheRoad)} />
+      <span className="hidden h-9 w-px bg-line sm:block" />
+      <Stat label="Done today" value={`${done} / ${total}`} />
+      <span className="hidden h-9 w-px bg-line sm:block" />
+      <Stat label="Crews out" value={String(vans.filter((van) => van.state !== "waiting").length)} />
+    </>
   );
 }
 

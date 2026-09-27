@@ -237,7 +237,7 @@ export default function Dispatch() {
 
       <div className="flex flex-col gap-6 xl:flex-row">
         <section aria-label="Schedule" className={`min-w-0 flex-1 overflow-x-auto transition-opacity ${day.refreshing ? "opacity-70" : ""}`}>
-          <div className="relative min-w-[860px]">
+          <div className="relative min-w-[860px] [--lane:118px] sm:[--lane:176px]">
             {/* Where the day has got to. Only on today: on any other day there
                 is no "now" to draw. */}
             {isToday && demoMinutes !== null && demoMinutes >= BOARD_START && demoMinutes <= BOARD_END ? (
@@ -245,14 +245,16 @@ export default function Dispatch() {
                 aria-hidden="true"
                 data-now-line=""
                 className="pointer-events-none absolute top-6 bottom-0 z-10 w-px bg-accent/70"
-                style={{ left: `calc(176px + ${((demoMinutes - BOARD_START) / SPAN) * 100}% - ${((demoMinutes - BOARD_START) / SPAN) * 176}px)` }}
+                style={{ left: `calc(var(--lane) + ${((demoMinutes - BOARD_START) / SPAN) * 100}% - ${(demoMinutes - BOARD_START) / SPAN} * var(--lane))` }}
               >
                 <span className="absolute -top-1.5 -left-[3px] h-[7px] w-[7px] rounded-full bg-accent" />
               </div>
             ) : null}
 
-            <div className="grid grid-cols-[176px_1fr] border-b border-line pb-3">
-              <Eyebrow>Crew</Eyebrow>
+            <div className="grid grid-cols-[var(--lane)_1fr] border-b border-line pb-3">
+              <span className="sticky left-0 z-20 bg-canvas pr-3">
+                <Eyebrow>Crew</Eyebrow>
+              </span>
               <div className="relative h-4">
                 {HOURS.map((hour) => (
                   <span
@@ -346,15 +348,17 @@ function CrewLane({ crew, jobs, timezone, openJob, onOpen, draggable, drag, hint
   const bookedMinutes = jobs.reduce((sum, job) => sum + job.estimatedMinutes, 0);
 
   return (
-    <div className="grid h-[92px] grid-cols-[176px_1fr] items-center border-b border-line/60">
-      <div className="flex items-center gap-3">
+    <div className="grid h-[92px] grid-cols-[var(--lane)_1fr] items-center border-b border-line/60">
+      <div className="sticky left-0 z-20 flex h-full items-center gap-3 bg-canvas pr-3">
         <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-raised text-xs font-medium text-ink-muted">
           {crew.lead ? initials(crew.lead.name) : "-"}
         </span>
         <div className="flex flex-col gap-[3px]">
           <span className="text-sm font-medium">{crew.name}</span>
-          <span className="font-mono text-[10.5px] text-ink-faint">
-            {crew.van} · {Math.round(bookedMinutes / 60)}h booked
+          <span className="flex flex-col font-mono text-[10.5px] text-ink-faint sm:flex-row sm:gap-1">
+            <span>{crew.van}</span>
+            <span className="hidden sm:inline">·</span>
+            <span>{Math.round(bookedMinutes / 60)}h booked</span>
           </span>
         </div>
       </div>

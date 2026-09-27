@@ -141,7 +141,7 @@ function Section({
                       {row.job ? `#${row.job.number} ${row.job.title}` : "No job"}
                     </span>
                   </span>
-                  <span className="flex items-center gap-4">
+                  <span className="flex items-center gap-2.5 sm:gap-4">
                     <StatusPill tone={TONE[row.status] ?? "quiet"}>{row.status}</StatusPill>
                     <span className="font-mono text-[12px] whitespace-nowrap text-ink-faint">
                       {(() => {

@@ -115,16 +115,22 @@ export default function CustomerDetail() {
                   key={job.id}
                   className="flex flex-col gap-2 border-b border-line px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-4"
                 >
+                  {/* On a phone the job and what it was worth share the first
+                      line; the pill and the date follow underneath. Run as one
+                      row the money was pushed off the edge of the card. */}
                   <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
                     <span className="font-mono text-[11.5px] text-ink-faint">#{job.number}</span>
-                    <span className="text-[13.5px]">{job.title}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13.5px]">{job.title}</span>
+                    <span className="shrink-0 font-mono tabular-nums text-[12.5px] sm:hidden">
+                      {job.invoice ? money(job.invoice.totalCents) : job.quote ? `${money(job.quote.totalCents)} quoted` : ""}
+                    </span>
                   </span>
-                  <span className="flex items-center gap-4">
+                  <span className="flex items-center gap-2.5 sm:gap-4">
                     <StatusPill tone={STATUS[job.status].tone}>{STATUS[job.status].label}</StatusPill>
                     <span className="font-mono text-[12px] whitespace-nowrap text-ink-faint">
                       {shortDate(job.scheduledStart ?? job.requestedAt, tz)}
                     </span>
-                    <span className="ml-auto shrink-0 text-right font-mono tabular-nums text-[12.5px] sm:ml-0 sm:w-24">
+                    <span className="hidden shrink-0 text-right font-mono tabular-nums text-[12.5px] sm:inline sm:w-24">
                       {job.invoice ? money(job.invoice.totalCents) : job.quote ? `${money(job.quote.totalCents)} quoted` : ""}
                     </span>
                   </span>
