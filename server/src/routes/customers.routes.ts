@@ -2,6 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 
 import { ApiError } from "../lib/ApiError";
+import { contains } from "../lib/contains";
 import { authOf, requireAuth, requireRole } from "../middleware/auth";
 import { Crew, Customer, Invoice, Job, Property, Quote } from "../models";
 import { totalCents } from "../models/lineItems";
@@ -18,11 +19,6 @@ const router = Router();
  * phone.
  */
 router.use("/customers", requireAuth, requireRole("owner", "dispatcher"));
-
-/** Case-insensitive "contains", with anything regex-special treated literally. */
-function contains(term: string): RegExp {
-  return new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-}
 
 /**
  * Everyone this business works for.

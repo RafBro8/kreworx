@@ -65,7 +65,24 @@ export default function Dispatch() {
   const office = canOpen(me.user.role, "map");
   const [params, setParams] = useSearchParams();
   const requestedDate = params.get("date") ?? undefined;
-  const [openJob, setOpenJob] = useState<string | null>(null);
+  // Which job is open lives in the URL rather than in state, so a search
+  // result can link straight to one and a dispatcher can send someone a link
+  // to the job they are talking about. Replacing rather than pushing keeps the
+  // back button meaning "the previous page", not "the previous panel".
+  const openJob = params.get("job");
+  const setOpenJob = useCallback(
+    (id: string | null) =>
+      setParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (id === null) next.delete("job");
+          else next.set("job", id);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
   const [drag, setDrag] = useState<Drag | null>(null);
   // The pointer handlers run outside React's render, so they read the drag
   // from a ref rather than from state that has not landed yet.
@@ -84,7 +101,7 @@ export default function Dispatch() {
     reloadDay();
     reloadQueue();
   }, [reloadDay, reloadQueue]);
-  const closePanel = useCallback(() => setOpenJob(null), []);
+  const closePanel = useCallback(() => setOpenJob(null), [setOpenJob]);
 
   // Someone else moving a job redraws this board, but only when it is the day
   // being looked at - or when the whole demo was rebuilt underneath it.

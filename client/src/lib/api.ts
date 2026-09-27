@@ -210,6 +210,22 @@ export type OwnerWork = {
   }[];
 };
 
+/** What one box over the jobs and the people gives back. */
+export type SearchResults = {
+  query: string;
+  jobs: {
+    id: string;
+    number: number;
+    title: string;
+    status: JobStatus;
+    customer: string | null;
+    where: string | null;
+    /** The day the board must be showing for this job to be on it. */
+    date: string | null;
+  }[];
+  customers: { id: string; name: string; kind: "residential" | "commercial"; detail: string | null }[];
+};
+
 export type CustomerRow = {
   id: string;
   name: string;
@@ -357,6 +373,7 @@ export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getOwnerMoney = () => api<OwnerMoney>("/owner/money");
 export const getOwnerWork = () => api<OwnerWork>("/owner/work");
+export const search = (query: string) => api<SearchResults>(`/search?q=${encodeURIComponent(query)}`);
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
 /**

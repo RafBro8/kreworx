@@ -10,9 +10,9 @@ import {
   PeopleIcon,
   PhoneIcon,
   ReceiptIcon,
-  SearchIcon,
   TruckIcon,
 } from "../components/icons";
+import Search from "../components/Search";
 import { getDemoAccounts, type DemoAccounts, type Role } from "../lib/api";
 import { initials, shortDate } from "../lib/format";
 
@@ -75,16 +75,9 @@ export default function OpsLayout() {
             <span className="font-mono text-[13px] text-ink-faint">{shortDate(new Date(), me.company.timezone)}</span>
           </div>
 
-          {/* Search is chrome until there is something to search, so it is
-              hidden from assistive tech rather than announced as a control
-              that does nothing. */}
-          <div
-            aria-hidden="true"
-            className="hidden max-w-[340px] flex-1 items-center gap-2.5 rounded-control border border-border bg-canvas px-3 py-2.5 text-ink-faint md:flex"
-          >
-            <SearchIcon size={16} />
-            <span className="text-[13.5px]">Search jobs, customers, addresses</span>
-          </div>
+          {/* The office searches; a technician has their own day and never
+              the whole book, the same rule the customer list follows. */}
+          {canOpen(me.user.role, "customers") ? <Search /> : null}
 
           <div className="ml-auto flex items-center gap-4">
             <div className="hidden lg:block">

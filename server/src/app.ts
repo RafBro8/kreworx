@@ -9,6 +9,7 @@ import { loadSession } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/auth.routes";
 import customerRoutes from "./routes/customers.routes";
+import searchRoutes from "./routes/search.routes";
 import demoRoutes from "./routes/demo.routes";
 import healthRoutes from "./routes/health.routes";
 import moneyRoutes from "./routes/money.routes";
@@ -55,6 +56,7 @@ export function createApp(): Express {
     scheduleRoutes,
     photoRoutes,
     customerRoutes,
+    searchRoutes,
     moneyRoutes,
     ownerRoutes,
     demoRoutes,
