@@ -3,7 +3,7 @@ import { Router } from "express";
 import { addDays, dateIn, dayRange, startOfWeek } from "../lib/dates";
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireRole } from "../middleware/auth";
-import { Company, Customer, Invoice, Job, Quote } from "../models";
+import { Company, Crew, Customer, Invoice, Job, Quote } from "../models";
 import { totalCents } from "../models/lineItems";
 
 const router = Router();
@@ -152,6 +152,85 @@ router.get("/owner/money", requireRole("owner"), async (req, res) => {
       answered: answered.length,
       weeks: CHART_WEEKS,
     },
+  });
+});
+
+/**
+ * How the work went, and who did it.
+ *
+ * The money page says what the business took; this says what it took to earn
+ * it. The hours are the interesting part: a crew consistently over its booked
+ * time is not a lazy crew, it is a price list or a slot length that is wrong.
+ */
+router.get("/owner/work", requireRole("owner"), async (req, res) => {
+  const auth = authOf(req);
+  const company = await Company.findById(auth.companyId, { timezone: 1 }).lean();
+  if (!company) throw ApiError.unauthorized();
+
+  const firstWeek = addDays(startOfWeek(dateIn(new Date(), company.timezone)), -7 * (CHART_WEEKS - 1));
+  const from = dayRange(firstWeek, company.timezone).start;
+  const scoped = { companyId: auth.companyId };
+
+  const [crews, jobs, invoices] = await Promise.all([
+    Crew.find(scoped, { name: 1, van: 1, sortOrder: 1 }).sort({ sortOrder: 1 }).lean(),
+    Job.find(
+      { ...scoped, status: { $in: ["done", "cancelled"] as const }, scheduledStart: { $gte: from } },
+      { crewId: 1, status: 1, scheduledStart: 1, scheduledEnd: 1, timeline: 1 },
+    ).lean(),
+    Invoice.find(
+      { ...scoped, status: { $ne: "void" as const }, issuedAt: { $gte: from } },
+      { lineItems: 1, jobId: 1 },
+    ).lean(),
+  ]);
+
+  const done = jobs.filter((job) => job.status === "done");
+  const cancelled = jobs.length - done.length;
+
+  // What a job earned belongs to the crew that did it, so the money follows
+  // the job rather than being counted twice.
+  const crewOfJob = new Map(jobs.map((job) => [String(job._id), job.crewId ? String(job.crewId) : null]));
+  const billedByCrew = new Map<string, number>();
+  let billed = 0;
+  for (const invoice of invoices) {
+    const cents = totalCents(invoice.lineItems);
+    billed += cents;
+    const crewId = crewOfJob.get(String(invoice.jobId));
+    if (crewId) billedByCrew.set(crewId, (billedByCrew.get(crewId) ?? 0) + cents);
+  }
+
+  const minutesBetween = (from_: Date, to: Date) => Math.max(Math.round((to.getTime() - from_.getTime()) / 60_000), 0);
+
+  const perCrew = crews.map((crew) => {
+    const theirs = done.filter((job) => String(job.crewId) === String(crew._id));
+    let bookedMinutes = 0;
+    let onSiteMinutes = 0;
+    for (const job of theirs) {
+      if (job.scheduledStart && job.scheduledEnd) bookedMinutes += minutesBetween(job.scheduledStart, job.scheduledEnd);
+      // Only a job with both marks counts towards the hours, so a job someone
+      // closed from the office cannot make a crew look quick.
+      const arrived = job.timeline.find((entry) => entry.status === "on_site")?.at;
+      const finished = job.timeline.find((entry) => entry.status === "done")?.at;
+      if (arrived && finished) onSiteMinutes += minutesBetween(arrived, finished);
+    }
+    return {
+      id: String(crew._id),
+      name: crew.name,
+      van: crew.van,
+      done: theirs.length,
+      bookedMinutes,
+      onSiteMinutes,
+      billedCents: billedByCrew.get(String(crew._id)) ?? 0,
+    };
+  });
+
+  res.json({
+    weeks: CHART_WEEKS,
+    done: done.length,
+    cancelled,
+    // Averaged over the bills raised, which is the number an owner quotes when
+    // someone asks what a job is worth.
+    averageJobCents: invoices.length > 0 ? Math.round(billed / invoices.length) : 0,
+    crews: perCrew,
   });
 });
 

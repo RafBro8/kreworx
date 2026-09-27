@@ -38,6 +38,18 @@ const booksPayload = {
   pipeline: { out: { count: 3, cents: 8_269_00 }, won: { count: 129, cents: 36_236_00 }, answered: 154, weeks: 12 },
 };
 
+/** Twelve weeks of work, with one crew steadily over its booked hours. */
+const workPayload = {
+  weeks: 12,
+  done: 707,
+  cancelled: 27,
+  averageJobCents: 262_00,
+  crews: [
+    { id: "c-ramirez", name: "Ramirez", van: "VAN 12", done: 180, bookedMinutes: 19_320, onSiteMinutes: 19_314, billedCents: 46_865_00 },
+    { id: "c-whitfield", name: "Whitfield", van: "VAN 05", done: 175, bookedMinutes: 19_020, onSiteMinutes: 19_542, billedCents: 47_196_00 },
+  ],
+};
+
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 }
@@ -52,6 +64,7 @@ function fakeServer({ isDemo = true, resetFails = false } = {}) {
     if (url === "/api/auth/me") return json({ user: { id: "u-owner", name: "Renee Castillo", role: "owner", title: "Owner" }, company: { id: "co", name: "Northline Mechanical", timezone: "America/Chicago", isDemo } });
     if (url === "/api/owner/summary") return json(summary);
     if (url === "/api/owner/money") return json(booksPayload);
+    if (url === "/api/owner/work") return json(workPayload);
     if (url === "/api/demo/reset") return resetFails ? json({ error: "This is not a demo company" }, 403) : json(null, 204);
     return json({ error: `Unhandled ${url}` }, 404);
   });
@@ -103,6 +116,35 @@ describe("the owner's books", () => {
 
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row")).toHaveLength(13); // twelve weeks and a header
+  });
+});
+
+describe("the owner's view of the work", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reports the jobs finished and the share called off", async () => {
+    vi.stubGlobal("fetch", fakeServer().fetch);
+    renderOwner();
+
+    expect(await screen.findByText("The work")).toBeInTheDocument();
+    expect(screen.getByText("707")).toBeInTheDocument();
+    // 27 of 734 attempted, rounded.
+    expect(screen.getByText("4%")).toBeInTheDocument();
+    expect(screen.getByText("27 of 734 booked")).toBeInTheDocument();
+  });
+
+  it("flags a crew running over its booked hours, and says so in words", async () => {
+    vi.stubGlobal("fetch", fakeServer().fetch);
+    renderOwner();
+
+    const crews = await screen.findByRole("list", { name: "Crews" });
+    const whitfield = within(crews).getByText("Whitfield").closest("li")!;
+    // 19,542 on site against 19,020 booked is a little under nine hours over.
+    expect(within(whitfield).getByText("9h over")).toBeInTheDocument();
+
+    // Ramirez is six minutes out over twelve weeks, which is not a finding.
+    const ramirez = within(crews).getByText("Ramirez").closest("li")!;
+    expect(within(ramirez).getByText("on time")).toBeInTheDocument();
   });
 });
 

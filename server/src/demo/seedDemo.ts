@@ -15,7 +15,7 @@ import { COMPANY, CREWS, STAFF, staffEmail } from "./northline";
  * jobs). A running demo built by an older version is rebuilt on the next
  * start rather than waiting for the date to change.
  */
-export const DEMO_SEED_VERSION = 7;
+export const DEMO_SEED_VERSION = 8;
 
 /**
  * Writes the Northline demo into the database.

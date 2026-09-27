@@ -6,6 +6,7 @@ import { createApp } from "../app";
 import { SESSION_COOKIE, signSession } from "../auth/session";
 import { connectDatabase, disconnectDatabase } from "../config/db";
 import { seedDemo } from "../demo/seedDemo";
+import { addDays, dateIn, dayRange, startOfWeek } from "../lib/dates";
 import { Company, Customer, ensureIndexes, Invoice, Job, Property, Quote, User } from "../models";
 import { totalCents } from "../models/lineItems";
 import { answerQuote } from "../services/quotes";
@@ -196,6 +197,68 @@ describe("the Kreworx API", () => {
         cents: stillOut.reduce((total, quote) => total + totalCents(quote.lineItems), 0),
       });
       expect(response.body.pipeline.won.count).toBeLessThanOrEqual(response.body.pipeline.answered);
+    });
+
+    it("keeps the crews' figures away from a dispatcher", async () => {
+      const cookie = await signInAs("Dana Morales");
+      expect((await request(app).get("/api/owner/work").set("Cookie", cookie)).status).toBe(403);
+    });
+
+    it("counts finished work, and calls off the rest", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/work").set("Cookie", cookie);
+
+      expect(response.status).toBe(200);
+      const body = response.body as { done: number; cancelled: number; crews: { done: number }[] };
+      // Months of trade behind us, and every finished job belongs to a crew.
+      expect(body.done).toBeGreaterThan(100);
+      expect(body.crews.reduce((total, crew) => total + crew.done, 0)).toBe(body.done);
+      expect(body.cancelled).toBeGreaterThan(0);
+    });
+
+    it("measures the hours from the marks a technician actually made", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/work").set("Cookie", cookie);
+      const crews = response.body.crews as { id: string; bookedMinutes: number; onSiteMinutes: number }[];
+
+      // The same twelve whole weeks the endpoint reports on: the demo carries
+      // more history than that, and anything older must not be counted.
+      const TZ = "America/Chicago";
+      const firstWeek = addDays(startOfWeek(dateIn(new Date(), TZ)), -7 * (response.body.weeks - 1));
+      const from = dayRange(firstWeek, TZ).start;
+
+      for (const crew of crews) {
+        const theirs = await Job.find(
+          { crewId: crew.id, status: "done", scheduledStart: { $gte: from } },
+          { timeline: 1, scheduledStart: 1, scheduledEnd: 1 },
+        ).lean();
+        const onSite = theirs.reduce((total, job) => {
+          const arrived = job.timeline.find((entry) => entry.status === "on_site")?.at;
+          const finished = job.timeline.find((entry) => entry.status === "done")?.at;
+          return total + (arrived && finished ? Math.round((finished.getTime() - arrived.getTime()) / 60_000) : 0);
+        }, 0);
+        expect(crew.onSiteMinutes).toBe(onSite);
+        // The demo does not book every job perfectly, so this is a real
+        // comparison rather than the same number written out twice.
+        expect(crew.onSiteMinutes).not.toBe(crew.bookedMinutes);
+      }
+    });
+
+    it("gives each crew the money from the jobs it did", async () => {
+      const cookie = await signInAs("Renee Castillo");
+      const response = await request(app).get("/api/owner/work").set("Cookie", cookie);
+      const crews = response.body.crews as { id: string; billedCents: number }[];
+
+      const jobsOfFirst = await Job.find({ crewId: crews[0]!.id }, { _id: 1 }).lean();
+      const theirInvoices = await Invoice.find(
+        { jobId: { $in: jobsOfFirst.map((job) => job._id) }, status: { $ne: "void" } },
+        { lineItems: 1 },
+      ).lean();
+      const owed = theirInvoices.reduce((total, invoice) => total + totalCents(invoice.lineItems), 0);
+
+      // Within the window the endpoint looks at, so this is a floor not a match.
+      expect(crews[0]!.billedCents).toBeGreaterThan(0);
+      expect(crews[0]!.billedCents).toBeLessThanOrEqual(owed);
     });
 
     it("rejects a malformed date rather than guessing", async () => {

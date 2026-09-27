@@ -199,12 +199,23 @@ export function buildDemo(now: Date, tokenFor: (jobNumber: number) => string): D
   const drafts: Draft[] = [];
 
   /** Timeline for a job that ran as planned, from booking to finish. */
-  const completedTimeline = (requestedAt: Date, start: Date, end: Date): TimelineEntry[] => [
-    { status: "scheduled", at: requestedAt },
-    { status: "en_route", at: new Date(start.getTime() - 20 * 60_000) },
-    { status: "on_site", at: new Date(start.getTime() + 3 * 60_000) },
-    { status: "done", at: new Date(end.getTime() - 8 * 60_000) },
-  ];
+  const completedTimeline = (requestedAt: Date, start: Date, end: Date): TimelineEntry[] => {
+    // No two visits take exactly the slot they were given. Some are away
+    // early, some run well over, and a few start late because the one before
+    // did. That spread is the whole point of showing an owner the hours
+    // actually spent against the hours booked - if every job finished eleven
+    // minutes early the comparison would be arithmetic, not information.
+    const arrive = Math.round((random() - 0.35) * 16);
+    const overrun = Math.round((random() - 0.42) * 56);
+    const onSite = new Date(start.getTime() + arrive * 60_000);
+    const finished = new Date(Math.max(end.getTime() + overrun * 60_000, onSite.getTime() + 20 * 60_000));
+    return [
+      { status: "scheduled", at: requestedAt },
+      { status: "en_route", at: new Date(onSite.getTime() - 20 * 60_000) },
+      { status: "on_site", at: onSite },
+      { status: "done", at: finished },
+    ];
+  };
 
   const scheduledDraft = (options: {
     day: string;

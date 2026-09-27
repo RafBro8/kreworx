@@ -193,6 +193,23 @@ export type OwnerMoney = {
   };
 };
 
+/** What it took to earn the money: jobs finished, and the crews who did them. */
+export type OwnerWork = {
+  weeks: number;
+  done: number;
+  cancelled: number;
+  averageJobCents: number;
+  crews: {
+    id: string;
+    name: string;
+    van: string;
+    done: number;
+    bookedMinutes: number;
+    onSiteMinutes: number;
+    billedCents: number;
+  }[];
+};
+
 export type CustomerRow = {
   id: string;
   name: string;
@@ -339,6 +356,7 @@ export const getJobs = (date?: string) => api<DayOfJobs>(`/jobs${date ? `?date=$
 export const getUnscheduledJobs = () => api<JobSummary[]>("/jobs/unscheduled");
 export const getOwnerSummary = () => api<OwnerSummary>("/owner/summary");
 export const getOwnerMoney = () => api<OwnerMoney>("/owner/money");
+export const getOwnerWork = () => api<OwnerWork>("/owner/work");
 export const getPortal = (token: string) => api<PortalView>(`/portal/${encodeURIComponent(token)}`);
 export const resetDemo = () => api<void>("/demo/reset", { method: "POST" });
 /**

@@ -3,7 +3,16 @@ import { Link } from "react-router";
 
 import { useMe } from "../../auth/context";
 import { Card, Eyebrow, Stat, StatusPill } from "../../components/ui";
-import { getHealth, getOwnerMoney, getOwnerSummary, resetDemo, type OwnerMoney } from "../../lib/api";
+import {
+  getHealth,
+  getOwnerMoney,
+  getOwnerSummary,
+  getOwnerWork,
+  resetDemo,
+  type Health,
+  type OwnerMoney,
+  type OwnerWork,
+} from "../../lib/api";
 import { money, moneyRounded } from "../../lib/format";
 import { useApi } from "../../lib/useApi";
 import RevenueChart from "./RevenueChart";
@@ -12,6 +21,7 @@ export default function Owner() {
   const me = useMe();
   const summary = useApi(getOwnerSummary);
   const books = useApi(getOwnerMoney);
+  const work = useApi(getOwnerWork);
   const health = useApi(getHealth);
 
   return (
@@ -52,34 +62,94 @@ export default function Owner() {
         </p>
       ) : null}
 
-      {me.company.isDemo ? <ResetDemo onReset={summary.reload} /> : null}
+      {work.status === "ready" ? <Work work={work.data} /> : null}
+      {work.status === "error" ? (
+        <p role="alert" className="text-sm text-blocked">
+          {work.message}
+        </p>
+      ) : null}
 
-      <Card>
-        <div className="flex flex-col gap-3">
-          <Eyebrow>Deployment</Eyebrow>
-          {health.status === "loading" ? (
-            <span className="text-sm text-ink-muted">Checking the API…</span>
-          ) : health.status === "error" ? (
-            <span className="text-sm text-blocked">{health.message}</span>
-          ) : (
-            <dl className="grid gap-3 font-mono text-[13px] sm:grid-cols-3">
-              <div className="flex flex-col gap-1">
-                <dt className="text-ink-faint">API</dt>
-                <dd>{health.data.status}</dd>
-              </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-ink-faint">Commit</dt>
-                <dd>{health.data.commit ?? "local"}</dd>
-              </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-ink-faint">Database</dt>
-                <dd>{health.data.database.connected ? (health.data.database.name ?? "connected") : "down"}</dd>
-              </div>
-            </dl>
-          )}
-        </div>
-      </Card>
+      {/* The commit and the database live with the demo controls, because a
+          shop owner running this for real has no use for either. */}
+      {me.company.isDemo ? <ResetDemo onReset={summary.reload} health={health} /> : null}
     </div>
+  );
+}
+
+/**
+ * What it took to earn the money.
+ *
+ * No chart here: four crews and three totals are numbers, and a bar apiece
+ * would only be a picture of a number already on the screen. The hours are the
+ * column worth reading - a crew steadily over its booked time is not a slow
+ * crew, it is a slot length or a price that is wrong.
+ */
+function Work({ work }: { work: OwnerWork }) {
+  const attempted = work.done + work.cancelled;
+  const calledOff = attempted > 0 ? Math.round((work.cancelled / attempted) * 100) : 0;
+
+  return (
+    <Card className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
+        <Eyebrow>The work</Eyebrow>
+        <span className="text-[12.5px] text-ink-muted">The last {work.weeks} weeks</span>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-3">
+        <Stat label="Jobs finished" value={String(work.done)} note={`${(work.done / work.weeks).toFixed(0)} a week`} />
+        <Stat label="Average job" value={moneyRounded(work.averageJobCents)} note="Across every bill raised" />
+        <Stat label="Called off" value={`${calledOff}%`} note={`${work.cancelled} of ${attempted} booked`} />
+      </div>
+
+      <ul className="flex flex-col border-t border-line" aria-label="Crews">
+        {work.crews.map((crew) => (
+          <CrewRow key={crew.id} crew={crew} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/**
+ * Below this, a crew is on time.
+ *
+ * An hour either way across three months of work is noise, and flagging it
+ * would teach an owner to ignore the column. Three hours is a pattern.
+ */
+const HOURS_THAT_MATTER = 180;
+
+function CrewRow({ crew }: { crew: OwnerWork["crews"][number] }) {
+  const over = crew.onSiteMinutes - crew.bookedMinutes;
+  const hours = (minutes: number) => `${Math.round(minutes / 60)}h`;
+
+  return (
+    <li className="flex flex-col gap-1.5 border-b border-line py-3 last:border-0 sm:flex-row sm:items-center sm:gap-4">
+      {/* The van and what it earned go on one line, so a phone reads the two
+          ends of the row together rather than leaving the money stranded. */}
+      <span className="flex items-baseline justify-between gap-2 sm:w-40 sm:shrink-0 sm:justify-start">
+        <span className="flex items-baseline gap-2">
+          <span className="text-[13.5px]">{crew.name}</span>
+          <span className="font-mono text-[11px] text-ink-faint">{crew.van}</span>
+        </span>
+        <span className="font-mono tabular-nums text-[13px] sm:hidden">{moneyRounded(crew.billedCents)}</span>
+      </span>
+      <span className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:flex-1">
+        <span className="text-[12.5px] text-ink-muted">{crew.done} jobs</span>
+        <span className="font-mono text-[12px] text-ink-faint">
+          {hours(crew.bookedMinutes)} booked · {hours(crew.onSiteMinutes)} on site
+        </span>
+        {Math.abs(over) >= HOURS_THAT_MATTER ? (
+          <StatusPill tone={over > 0 ? "waiting" : "quiet"}>
+            {hours(Math.abs(over))} {over > 0 ? "over" : "under"}
+          </StatusPill>
+        ) : (
+          <span className="text-[12px] text-ink-faint">on time</span>
+        )}
+      </span>
+      <span className="hidden font-mono tabular-nums text-[13px] sm:inline sm:w-24 sm:text-right">
+        {moneyRounded(crew.billedCents)}
+      </span>
+    </li>
   );
 }
 
@@ -223,7 +293,7 @@ function Ageing({ ageing, totalCents }: { ageing: OwnerMoney["receivable"]["agei
  * the nightly rebuild. Two steps, because it throws away anyone else's changes
  * as well.
  */
-function ResetDemo({ onReset }: { onReset: () => void }) {
+function ResetDemo({ onReset, health }: { onReset: () => void; health: ReturnType<typeof useApi<Health>> }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -277,6 +347,29 @@ function ResetDemo({ onReset }: { onReset: () => void }) {
             {error}
           </p>
         ) : null}
+
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 font-mono text-[11.5px] text-ink-faint">
+          <div className="flex gap-2">
+            <dt>API</dt>
+            <dd className="text-ink-muted">
+              {health.status === "ready" ? health.data.status : health.status === "error" ? "unreachable" : "…"}
+            </dd>
+          </div>
+          <div className="flex gap-2">
+            <dt>Commit</dt>
+            <dd className="text-ink-muted">{health.status === "ready" ? (health.data.commit ?? "local") : "…"}</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt>Database</dt>
+            <dd className="text-ink-muted">
+              {health.status === "ready"
+                ? health.data.database.connected
+                  ? (health.data.database.name ?? "connected")
+                  : "down"
+                : "…"}
+            </dd>
+          </div>
+        </dl>
       </div>
     </Card>
   );
