@@ -181,10 +181,15 @@ function AccountMenu() {
       </button>
 
       {open ? (
+        /* Above the page, not level with it. The board's pinned crew column is
+           a positioned element too, and living in <main> it paints after
+           anything in the header that shares its level - which is how this menu
+           ended up underneath the vans. z-40 is where the other popover on this
+           bar, the search results, already sits. */
         <div
           role="menu"
           aria-label="Account"
-          className="absolute top-[calc(100%+8px)] right-0 z-20 w-72 overflow-hidden rounded-card border border-border bg-surface shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]"
+          className="absolute top-[calc(100%+8px)] right-0 z-40 w-72 overflow-hidden rounded-card border border-border bg-surface shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)]"
         >
           {me.company.isDemo ? (
             <div className="flex flex-col gap-1 border-b border-line p-2">
