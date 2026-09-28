@@ -1,5 +1,5 @@
 import { Router } from "express";
-import mongoose from "mongoose";
+import mongoose, { type Types } from "mongoose";
 
 import { ApiError } from "../lib/ApiError";
 import { authOf, requireAuth, requireRole } from "../middleware/auth";
@@ -89,13 +89,20 @@ router.get("/money", async (req, res) => {
 });
 
 /**
- * The job and customer a document belongs to. Mongoose types the two models
- * separately, so each lookup is written out rather than shared through one
- * helper that would have to be cast to compile.
+ * The job and customer a document belongs to.
+ *
+ * Scoped to the company in its own right rather than trusting the caller to
+ * have scoped the document it came from. Both callers do, today - but "safe
+ * because something upstream checked" stops being true the moment a third
+ * caller arrives, and the failure is one business reading another's, which is
+ * not a failure you want to find out about from a customer.
+ *
+ * Mongoose types the two models separately, so each lookup is written out
+ * rather than shared through one helper that would have to be cast to compile.
  */
-async function contextFor(jobId: unknown) {
-  const job = await Job.findById(jobId, { number: 1, title: 1, customerId: 1 }).lean();
-  const customer = job ? await Customer.findById(job.customerId, { name: 1 }).lean() : null;
+async function contextFor(jobId: unknown, companyId: Types.ObjectId) {
+  const job = await Job.findOne({ _id: jobId, companyId }, { number: 1, title: 1, customerId: 1 }).lean();
+  const customer = job ? await Customer.findOne({ _id: job.customerId, companyId }, { name: 1 }).lean() : null;
   return {
     job: job ? { id: String(job._id), number: job.number, title: job.title } : null,
     customer: customer?.name ?? null,
@@ -112,7 +119,7 @@ router.get("/quotes/:id", async (req, res) => {
   const quote = await Quote.findOne({ _id: validId(req.params.id as string, "Quote"), companyId: auth.companyId }).lean();
   if (!quote) throw ApiError.notFound("Quote not found");
 
-  res.json({ ...describeDocument(quote), ...(await contextFor(quote.jobId)), editable: quote.status === "draft" });
+  res.json({ ...describeDocument(quote), ...(await contextFor(quote.jobId, auth.companyId)), editable: quote.status === "draft" });
 });
 
 router.get("/invoices/:id", async (req, res) => {
@@ -122,7 +129,7 @@ router.get("/invoices/:id", async (req, res) => {
 
   res.json({
     ...describeDocument(invoice),
-    ...(await contextFor(invoice.jobId)),
+    ...(await contextFor(invoice.jobId, auth.companyId)),
     editable: invoice.status !== "paid" && invoice.status !== "void",
   });
 });

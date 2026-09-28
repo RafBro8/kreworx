@@ -393,5 +393,30 @@ describe("quotes and invoices", () => {
       expect(response.status).toBe(404);
       expect(await Quote.countDocuments({ jobId: theirJob._id })).toBe(0);
     });
+
+    it("never names another business's job on a document of ours", async () => {
+      // A quote of ours pointed at a job that is not - which should not happen,
+      // and is exactly why the lookup scopes itself rather than trusting that
+      // the document it was handed was scoped by somebody else.
+      const rival = await Company.create({ name: "Rival Context", slug: "rival-context", trade: "Heating", timezone: "America/Chicago" });
+      const now = new Date();
+      const theirJob = await Job.create({
+        companyId: rival._id, number: 1, customerId: rival._id, propertyId: rival._id, title: "Their private job", status: "scheduled",
+        scheduledStart: now, scheduledEnd: new Date(now.getTime() + 3_600_000), estimatedMinutes: 60, requestedAt: now,
+        portalToken: "rival-context-token-00000001",
+      });
+      const ours = await Company.findOne({ slug: "northline" }).lean();
+      const stray = await Quote.create({
+        companyId: ours!._id, number: 99_001, jobId: theirJob._id, customerId: rival._id,
+        status: "draft", lineItems: LINES,
+      });
+
+      const response = await request(app).get(`/api/quotes/${stray._id.toString()}`).set("Cookie", office);
+
+      expect(response.status).toBe(200);
+      // The document is ours to read; the job behind it is not ours to see.
+      expect(response.body.job).toBeNull();
+      expect(JSON.stringify(response.body)).not.toContain("Their private job");
+    });
   });
 });
