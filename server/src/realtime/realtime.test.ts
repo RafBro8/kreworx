@@ -142,14 +142,24 @@ describe("live updates", () => {
       const dana = await signIn("Dana Morales");
       const socket = await socketWith((await ticketFor(dana)).body.ticket);
       const pruitt = await Job.findOne({ number: 4474 }).lean();
-      const crew = await Crew.findOne({ name: "Whitfield" }).lean();
+      // A van of this test's own, with nothing on it. Moving the job onto a
+      // crew that already works that day means the target slot is only free
+      // depending on what the demo generated for the day the test happens to
+      // run on - which is how this passed all week and failed on a Monday.
+      const crew = await Crew.create({
+        companyId: pruitt!.companyId,
+        name: "Spare",
+        van: "VAN 99",
+        leadId: new Types.ObjectId(),
+        sortOrder: 99,
+      });
       const tomorrow = new Date(pruitt!.scheduledStart!.getTime() + 24 * 60 * 60 * 1000);
 
       const event = nextEvent<{ dates: string[] }>(socket, "board:changed");
       const moved = await request(app)
         .patch(`/api/jobs/${pruitt!._id.toString()}/schedule`)
         .set("Cookie", dana)
-        .send({ crewId: crew!._id.toString(), start: tomorrow.toISOString(), end: new Date(tomorrow.getTime() + 60 * 60 * 1000).toISOString() });
+        .send({ crewId: crew._id.toString(), start: tomorrow.toISOString(), end: new Date(tomorrow.getTime() + 60 * 60 * 1000).toISOString() });
       expect(moved.status).toBe(204);
 
       const payload = await event;
